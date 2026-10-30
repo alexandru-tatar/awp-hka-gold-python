@@ -1,6 +1,6 @@
 # Skills für den Python-Golden-Master
 
-*Status: Entwurf · Version 0.1.0 · Stand 30.10.2026 · Ticket HKA-41 · Verantwortlich: [Name]*
+*Status: Entwurf · Version 0.1.0 · Stand 30.10.2026 · Ticket HKA-40 · Verantwortlich: [Name]*
 
 ## Zweck
 
@@ -80,5 +80,5 @@ Ein Lauf ohne Abweichungen wird als **Goldener Standard** gespeichert. Jede neue
 7. **Manifest-Beispiel:** Der Architekturvorschlag (Starter und Runtime, §7) nennt für Noten das Icon `table`. Das Manifest-Schema erlaubt es nicht. Die Skills nutzen `grades`.
 8. **Eigenes CSS einbinden:** Der Architekturvorschlag legt das nicht fest. Das vorläufige SDK bindet `{PORTAL_BASE_PATH}/static/app.css` in `layout()` immer ein. Mit dem JavaScript-Golden-Master und dem Plattform-Team abstimmen.
 9. **Nicht abgedeckte Vorgaben:** Drei Vorgaben stehen nicht unter den 40 Einzelregeln (Regelpapier, Abschnitt „Offene Punkte“): Entscheidungen in der README festhalten, `Dockerfile` und `docker-compose.yml` nicht ohne Absprache ändern, `.editorconfig` und Projektstruktur einhalten. Sie sind bewusst nicht in den Skills, bis das Team entschieden hat.
-10. **Hauptregeln der App (`AGENTS.md`):** Die Datei, die diese Skills nennt und lädt, gehört nicht zu HKA-41.
+10. **Hauptregeln der App (`AGENTS.md`):** Die Datei, die diese Skills nennt und lädt, gehört nicht zu HKA-40.
 11. **Kopien für einzelne KI-Werkzeuge:** Diese Dateien sind die Quelle. Kopien im Format der jeweiligen Werkzeuge erzeugt später die Plattform (Architekturvorschlag, KI-Schicht, §7).
