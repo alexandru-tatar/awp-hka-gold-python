@@ -1,6 +1,6 @@
 # Skills für den Python-Golden-Master
 
-*Status: Entwurf · Version 0.1.0 · Stand 30.10.2026 · Ticket HKA-40 · Verantwortlich: [Name]*
+*Status: Entwurf · Version 0.1.0 · Stand 30.10.2026 · Ticket HKA-40 · Verantwortlich: Alexandru Tatar*
 
 ## Zweck
 
