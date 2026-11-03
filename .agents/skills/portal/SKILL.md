@@ -31,6 +31,7 @@ Die App läuft im HKA Portal. Das Portal meldet die Person an, zeichnet den Seit
 8. **Unverändert lassen:** `/healthz` und den Ordner `platform_sdk/`.
 9. **Keine Cookies:** Die App setzt und liest keine. Kein `response.set_cookie(...)`, kein `request.cookies`, keine `SessionMiddleware`. Zustand liegt auf dem Server, nicht beim Browser.
 10. **Keine Login-Bibliotheken:** zum Beispiel `jwt` (PyJWT), `python-jose`, `authlib`, `passlib`, `bcrypt`, `itsdangerous`, `fastapi-login`, `fastapi-users`. PyJWT steht in den Abhängigkeiten nur für `platform_sdk/`.
+11. **Dateien des Starters behalten:** Schreiben Sie die erste Seite in die vorhandene Vorlage `src/app/templates/page.html` und die Routen in `src/app/views.py`. Weitere Seiten legen Sie als neue Dateien daneben an. Benennen oder löschen Sie `src/app/main.py`, `src/app/views.py`, `src/app/templates/page.html`, `src/app/static/app.css` und `tests/test_app.py` nicht. Der Selbsttest und die Pipeline erwarten diese Dateien.
 
 ```python
 # src/app/main.py
@@ -136,4 +137,5 @@ A = automatisch, H = halbautomatisch (eine Person bestätigt), M = manuell (eine
 - [ ] `manifest.json` ist vollständig, die Rollen sind so klein wie möglich
 - [ ] `/healthz` und `platform_sdk/` sind unverändert
 - [ ] Keine Cookies, keine `SessionMiddleware`
+- [ ] Die Dateien des Starters sind noch da, nichts ist umbenannt (`src/app/templates/page.html`, `src/app/views.py`, `tests/test_app.py`)
 - [ ] `make lint` und `make test` laufen ohne Fehler
