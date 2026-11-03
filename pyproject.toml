@@ -1,0 +1,66 @@
+[project]
+name = "portal-app"
+version = "0.1.0"
+description = "HKA Portal-App (Python-Golden-Master)"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "fastapi==0.162.0",
+    "uvicorn==0.54.0",
+    "Jinja2==3.1.6",
+    "python-multipart==0.0.32",
+    "pyjwt[crypto]>=2.15.1",  # nur für platform_sdk/
+    "httpx>=0.28.1",          # nur für platform_sdk/
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "httpx2>=2.16.0",  # Test-Client von FastAPI
+    "ruff>=0.15",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+extend-exclude = ["platform_sdk"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "S", "TID"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Form", "fastapi.Query", "fastapi.Path"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "platform_sdk"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"requests".msg = "Andere Systeme nur über portal.adapters ansprechen (Regel R-SCHN-1)."
+"httpx".msg = "Andere Systeme nur über portal.adapters ansprechen (Regel R-SCHN-1)."
+"aiohttp".msg = "Andere Systeme nur über portal.adapters ansprechen (Regel R-SCHN-1)."
+"urllib3".msg = "Andere Systeme nur über portal.adapters ansprechen (Regel R-SCHN-1)."
+"urllib.request".msg = "Andere Systeme nur über portal.adapters ansprechen (Regel R-SCHN-1)."
+"http.client".msg = "Andere Systeme nur über portal.adapters ansprechen (Regel R-SCHN-1)."
+"socket".msg = "Andere Systeme nur über portal.adapters ansprechen (Regel R-SCHN-1)."
+"jwt".msg = "Kein eigenes Login und keine eigene Token-Prüfung (Regel R-PORT-1)."
+"jose".msg = "Kein eigenes Login und keine eigene Token-Prüfung (Regel R-PORT-1)."
+"authlib".msg = "Kein eigenes Login (Regel R-PORT-1)."
+"passlib".msg = "Kein eigenes Login (Regel R-PORT-1)."
+"bcrypt".msg = "Kein eigenes Login (Regel R-PORT-1)."
+"itsdangerous".msg = "Kein eigenes Login und keine Cookies (Regeln R-PORT-1, R-PORT-6)."
+"fastapi_login".msg = "Kein eigenes Login (Regel R-PORT-1)."
+"fastapi_users".msg = "Kein eigenes Login (Regel R-PORT-1)."
+"starlette.middleware.sessions".msg = "Keine Cookies; Zustand auf dem Server speichern (Regel R-PORT-6)."
+"markupsafe.Markup".msg = "HTML nur über Vorlagen mit autoescape (Skill design)."
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "TID251"]
+"tests/conftest.py" = ["E402"]  # Umgebung muss vor dem Import der App stehen
+# Selbsttests der Plattform: asserts, feste Befehle (uv, docker), Abruf von 127.0.0.1
+"tools/tests/**" = ["S101", "S108", "S310", "S603", "S607", "TID251"]

@@ -1,0 +1,15 @@
+# Nur platform_sdk/, src/, manifest.json, pyproject.toml und uv.lock gehoeren in den Build-Kontext
+.git
+.venv
+.env
+.env.*
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+build
+tests
+tools
+node_modules
+.devcontainer
+.agents
