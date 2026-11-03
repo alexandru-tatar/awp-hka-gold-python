@@ -1,9 +1,9 @@
 """Selbsttests des Golden Master (Python-Starter).
 
 Prüft, dass der Starter die Vorgaben der Plattform erfüllt: Aufbau, Manifest, Abhängigkeiten,
-Ruff-Verbote, Container, Gerüst der App, Anmeldung auf jeder Route und unveränderte
-Portal-Bibliothek. Die Tests bleiben grün, wenn eine Person ihre App im Starter baut,
-solange sie sich an die Regeln hält.
+Ruff-Verbote, Container, Gerüst der App, Anmeldung auf jeder Route, unveränderte
+Portal-Bibliothek und Gleichlauf mit dem JavaScript-Golden-Master. Die Tests bleiben grün,
+wenn eine Person ihre App im Starter baut, solange sie sich an die Regeln hält.
 
 Aufruf: make check-starter            (ohne Container)
         CHECK_DOCKER=1 make check-starter   (baut und startet zusätzlich den Container)
@@ -21,7 +21,7 @@ import time
 import urllib.request
 
 import pytest
-from common import ROOT, banned_modules, make_targets, manifest_errors, pruefung, pyproject
+from common import JS_ROOT, ROOT, banned_modules, make_targets, manifest_errors, pruefung, pyproject
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from starlette.routing import Mount
@@ -51,11 +51,14 @@ MANAGED = [
     ".agents/skills/README.md",
     "platform_sdk/VERSION",
     "platform_sdk/SHA256",
+    "platform_sdk/__init__.py",
     "src/app/__init__.py",
     "src/app/main.py",
     "src/app/views.py",
     "src/app/static/app.css",
+    "src/app/templates/page.html",
     "tests/conftest.py",
+    "tests/test_app.py",
 ]
 
 
@@ -278,6 +281,20 @@ def test_vorlage(path):
     assert not re.search(r"<img(?![^>]*\balt=)", html), "R-A11Y-7: Bild ohne Alternativtext (alt)"
 
 
+@pruefung("Vorlagen und CSS", "Jinja2 mit autoescape, kein autoescape-Aus in Vorlagen", "R-DES-4")
+def test_jinja2_autoescape():
+    from app.views import templates
+
+    # Starlette nutzt select_autoescape(): an für .html, .htm, .xml. Darum je Vorlage prüfen.
+    autoescape = templates.env.autoescape
+    for file in [f for f in (SRC / "templates").rglob("*") if f.is_file()]:
+        name = file.relative_to(SRC / "templates").as_posix()
+        on = autoescape(name) if callable(autoescape) else autoescape
+        assert on is True, f"R-DES-4: autoescape ist für {name} nicht eingeschaltet"
+        text = file.read_text(encoding="utf-8")
+        assert not re.search(r"\{%-?\s*autoescape\s+false", text), f"R-DES-4: autoescape aus in {file}"
+
+
 @pruefung(
     "Vorlagen und CSS",
     "CSS nur mit Variablen, ohne externe Quellen",
@@ -348,6 +365,11 @@ def test_keine_api_doku_erreichbar(app):
     assert not paths & {"/docs", "/redoc", "/openapi.json"}
 
 
+@pruefung("Laufende App", "Test-Anmeldung ist im Betrieb nicht erreichbar", "R-PORT-2")
+def test_test_anmeldung_nicht_erreichbar(app):
+    assert TestClient(app).get("/__dev/login").status_code == 401
+
+
 # ── Portal-Bibliothek ────────────────────────────────────────────────────────
 
 
@@ -409,3 +431,47 @@ def test_container():
         assert exc.value.code == 401
     finally:
         subprocess.run(["docker", "stop", name], capture_output=True)
+
+
+# ── Gleichlauf mit dem JavaScript-Golden-Master (HKA-44, Kriterium 9) ────────
+
+js = pytest.mark.skipif(not JS_ROOT.is_dir(), reason="awp-hka-gold-js liegt nicht neben diesem Repository")
+
+
+def js_text(path: str) -> str:
+    return (JS_ROOT / path).read_text(encoding="utf-8")
+
+
+def areas(text: str, pattern: str) -> set[str]:
+    found = {re.sub(r"JavaScript|Python", "<Sprache>", m) for m in re.findall(pattern, text, re.M)}
+    return found - {"Gleichlauf mit <Sprache>"}
+
+
+@pruefung("Gleichlauf mit JavaScript", "Gleiche make-Befehle")
+@js
+def test_gleiche_make_befehle():
+    assert make_targets() == set(re.findall(r"^([a-z][a-z-]*):", js_text("Makefile"), re.M))
+
+
+@pruefung("Gleichlauf mit JavaScript", "Gleiche Pflichtdateien, gleiches Manifest, gleiche SDK-Version")
+@js
+def test_gleiche_pflichtdateien_manifest_sdk():
+    common = [
+        "Makefile", "Dockerfile", ".dockerignore", ".gitignore", "manifest.json", "README.md",
+        ".agents/skills/README.md", "platform_sdk/VERSION", "platform_sdk/SHA256",
+        "tools/tests/skills", "tools/tests/starter",
+    ]  # fmt: skip
+    for path in common:
+        assert (ROOT / path).exists() and (JS_ROOT / path).exists(), f"{path} fehlt in einem der Repositories"
+    assert json.loads((ROOT / "manifest.json").read_text(encoding="utf-8")) == json.loads(js_text("manifest.json"))
+    assert (ROOT / "platform_sdk" / "VERSION").read_text(encoding="utf-8") == js_text("platform_sdk/VERSION")
+
+
+@pruefung("Gleichlauf mit JavaScript", "Gleiche Prüfbereiche im Prüfbericht")
+@js
+def test_gleiche_pruefbereiche():
+    pairs = [("starter/test_starter.py", "starter/starter.test.js"), ("skills/test_skills.py", "skills/skills.test.js")]
+    for py, js_file in pairs:
+        ours = areas((ROOT / "tools" / "tests" / py).read_text(encoding="utf-8"), r'@pruefung\(\s*"([^"]+)"')
+        theirs = areas(js_text(f"tools/tests/{js_file}"), r'^pruefung\(\s*"([^"]+)"')
+        assert ours == theirs, py

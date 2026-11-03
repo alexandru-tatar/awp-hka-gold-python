@@ -9,7 +9,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILLS_DIR = ROOT / ".agents" / "skills"
-JS_SKILLS_DIR = ROOT.parent / "awp-hka-gold-js" / ".agents" / "skills"
+JS_ROOT = ROOT.parent / "awp-hka-gold-js"
+JS_SKILLS_DIR = JS_ROOT / ".agents" / "skills"
 
 SKILL_NAMES = ["design", "barrierefreiheit", "ui-regeln", "schnittstellen", "portal", "pipeline-fehler", "secrets"]
 RULE_PREFIX = {
