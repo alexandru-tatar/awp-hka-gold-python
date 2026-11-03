@@ -42,7 +42,7 @@ Getrennt von den Tests der App in `tests/`. Sie laufen nicht mit `make test`.
 | Befehl | Was geprüft wird |
 |---|---|
 | `make check-skills` | `.agents/skills/`: Kopf, Regeln und Prüfungen (40 / 33 / 7), Zählung im README, Python- und JSON-Beispiele, Verweise auf Befehle und Dateien, Ruff-Verbote, Beispielantworten, Satzlänge, Gleichlauf mit `awp-hka-gold-js` |
-| `make check-starter` | Aufbau, Manifest, Abhängigkeiten, Ruff-Verbote, `Dockerfile`, Gerüst der App, Vorlagen und CSS, 401 auf jeder Route, Portal-Bibliothek. Mit `CHECK_DOCKER=1` zusätzlich Container bauen und starten |
+| `make check-starter` | Aufbau, Manifest, Abhängigkeiten, Ruff-Verbote, `Dockerfile`, Gerüst der App, Vorlagen und CSS, 401 auf jeder Route, Portal-Bibliothek, Gleichlauf mit `awp-hka-gold-js`. Mit `CHECK_DOCKER=1` zusätzlich Container bauen und starten |
 | `make check` | beides |
 
 Beide Befehle geben einen deutschen Prüfbericht aus: Prüfbereiche, jede Prüfung mit Ergebnis und betroffenen Einzelregeln, alle 40 Einzelregeln mit Stand und das Gesamtergebnis. Der Bericht wird als Nachweis gespeichert:
