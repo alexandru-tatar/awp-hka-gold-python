@@ -43,12 +43,20 @@ Getrennt von den Tests der App in `tests/`. Sie laufen nicht mit `make test`.
 |---|---|
 | `make check-skills` | `.agents/skills/`: Kopf, Regeln und Prüfungen (40 / 33 / 7), Zählung im README, Python- und JSON-Beispiele, Verweise auf Befehle und Dateien, Ruff-Verbote, Beispielantworten, Satzlänge, Gleichlauf mit `awp-hka-gold-js` |
 | `make check-starter` | Aufbau, Manifest, Abhängigkeiten, Ruff-Verbote, `Dockerfile`, Gerüst der App, Vorlagen und CSS, 401 auf jeder Route, Portal-Bibliothek, Gleichlauf mit `awp-hka-gold-js`. Mit `CHECK_DOCKER=1` zusätzlich Container bauen und starten |
-| `make check` | beides |
+| `make check` | beide Selbsttests, dazu `make lint` und `make test`; schreibt den gemeinsamen Prüfnachweis. Läuft nach einem Fehler weiter, damit der Nachweis immer entsteht |
 
-Beide Befehle geben einen deutschen Prüfbericht aus: Prüfbereiche, jede Prüfung mit Ergebnis und betroffenen Einzelregeln, alle 40 Einzelregeln mit Stand und das Gesamtergebnis. Der Bericht wird als Nachweis gespeichert:
+Jeder Befehl gibt einen deutschen Prüfbericht aus (Prüfbereiche, jede Prüfung mit Ergebnis und betroffenen Einzelregeln, alle 40 Einzelregeln mit Stand, Gesamtergebnis) und speichert ihn im Aufbau der Confluence-Vorlage [„Vorlage: User Story, Akzeptanzkriterien und Prüfnachweis“](https://hka-awp.atlassian.net/wiki/spaces/HKA/pages/19922945):
 
-- `build/pruefberichte/pruefbericht-<skills|starter>-<Datum_Uhrzeit>.md` (jeder Lauf)
-- `build/pruefberichte/pruefbericht-<skills|starter>-aktuell.md` (letzter Lauf)
-- `build/pruefberichte/<skills|starter>.xml` (JUnit, für die Pipeline)
+1. **Prüfnachweis (Vorlage B)**: Block für den Jira-Kommentar, wenn das Ticket auf „In Review“ geht. Datum, Commit, Prüfweg, Nachweis und „Auf eigenem Rechner ausgeführt“ sind ausgefüllt; was nur der Reviewer weiß, bleibt [OFFEN].
+2. **Checkliste Code-Review**: `[x]`, wenn der Lauf den Punkt vollständig belegt (Tests, Lint, Secrets, Login, Ticket-ID in den Commits), sonst `[ ]` mit Hinweis.
+3. Ergebnis der Läufe, danach die Prüfberichte im Detail.
+
+Dateien in `build/pruefberichte/`:
+
+- `pruefnachweis-aktuell.md` (letzter `make check`, an das Ticket hängen), `pruefnachweis-<Datum_Uhrzeit>.md` (jeder Lauf)
+- `pruefbericht-<skills|starter>-aktuell.md` und `-<Datum_Uhrzeit>.md` (einzelne Selbsttests), `-aktuell.json` (Zusammenfassung für `make check`)
+- `<skills|starter>.xml` (JUnit, für die Pipeline)
+
+In der Pipeline (GitHub Actions) setzt der Nachweis den Link zum Lauf und zum Pull Request selbst ein.
 
 Ob die KI die Skills befolgt, prüfen diese Tests nicht. Das macht das Prüfskript mit der Testaufgabe (HKA-30).

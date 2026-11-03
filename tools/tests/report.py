@@ -2,7 +2,9 @@
 
 Ersetzt die Punkte von pytest durch einen deutschen Bericht: Prüfbereiche, jede Prüfung mit
 Ergebnis, alle 40 Einzelregeln mit Stand, Gesamtergebnis. Der Bericht wird zusätzlich als
-Markdown in `build/pruefberichte/` abgelegt (Nachweis für das Prüfprotokoll).
+Markdown in `build/pruefberichte/` abgelegt, im Aufbau der Confluence-Vorlage „Prüfnachweis“
+(Vorlage B und Checkliste Code-Review, siehe pruefnachweis.py). Eine JSON-Zusammenfassung
+daneben nutzt `make check` für den gemeinsamen Prüfnachweis.
 
 Jeder Test trägt die Markierung `pruefung` (siehe `common.pruefung`).
 """
@@ -10,18 +12,18 @@ Jeder Test trägt die Markierung `pruefung` (siehe `common.pruefung`).
 from __future__ import annotations
 
 import datetime as dt
+import json
 import re
-import subprocess
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import pruefnachweis
 import pytest
 from common import ROOT, RULE_PREFIX, SKILL_NAMES, SKILLS_DIR, load_skill
 
 WIDTH = 100
-REPORT_DIR = ROOT / "build" / "pruefberichte"
 MARK = {"passed": "✔", "failed": "✘", "skipped": "○"}
 WORD = {"passed": "bestanden", "failed": "FEHLER", "skipped": "übersprungen"}
 
@@ -57,17 +59,6 @@ def load_rules() -> list[Rule]:
     return rules
 
 
-def git_state() -> str:
-    try:
-        head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True)
-        dirty = subprocess.run(["git", "status", "--porcelain"], cwd=ROOT, capture_output=True, text=True)
-    except OSError:
-        return "unbekannt"
-    if head.returncode != 0:
-        return "ohne Commit"
-    return head.stdout.strip() + (" (mit lokalen Änderungen)" if dirty.stdout.strip() else " (sauber)")
-
-
 def short(text: str, width: int) -> str:
     text = re.sub(r"`", "", text)
     return text if len(text) <= width else text[: width - 1] + "…"
@@ -92,6 +83,7 @@ class Pruefbericht:
         self.order: list[str] = []
         self.case_param: dict[str, str] = {}
         self.started = time.time()
+        self.git = pruefnachweis.git_info()
 
     # ── Sammeln ──────────────────────────────────────────────────────────────
 
@@ -156,7 +148,7 @@ class Pruefbericht:
         add(f" HKA Portal · Golden Master Python · {self.titel}", bold=True)
         add(double, bold=True)
         add(f" Datum            {now:%d.%m.%Y, %H:%M} Uhr")
-        add(f" Repository       {ROOT.name} · Stand {git_state()}")
+        add(f" Repository       {ROOT.name} · Stand {self.git['stand']}")
         add(f" Skills           Version {skills_version.group(1) if skills_version else '?'}")
         add(f" Portal-SDK       Version {version}")
         add(single)
@@ -254,14 +246,41 @@ class Pruefbericht:
     def style(outcome: str | None) -> dict:
         return {"passed": {"green": True}, "failed": {"red": True}, "skipped": {"yellow": True}}.get(outcome, {})
 
+    def summary(self, lines: list[tuple[str, dict]]) -> dict:
+        checks = list(self.checks.values())
+        fehler = sum(c.outcome == "failed" for c in checks)
+        return {
+            "art": self.regel_modus,
+            "titel": self.titel,
+            "stand": self.git["stand"],
+            "ergebnis": "NICHT BESTANDEN" if fehler else "BESTANDEN",
+            "pruefungen": len(checks),
+            "einzelfaelle": sum(c.cases for c in checks),
+            "fehler": fehler,
+            "uebersprungen": sum(c.outcome == "skipped" for c in checks),
+            "regeln": {r.id: self.rule_outcome(r) for r in load_rules()},
+            "bericht": [text for text, _ in lines],
+        }
+
     def save(self, lines: list[tuple[str, dict]]) -> Path:
-        REPORT_DIR.mkdir(parents=True, exist_ok=True)
+        zeit = dt.datetime.now()
         slug = self.titel.lower().replace(" ", "-").replace("ü", "ue").replace("ä", "ae").replace("ö", "oe")
-        path = REPORT_DIR / f"{slug}-{dt.datetime.now():%Y-%m-%d_%H-%M-%S}.md"
-        body = "\n".join(text for text, _ in lines)
-        path.write_text(f"# {self.titel}\n\n```text\n{body}\n```\n", encoding="utf-8")
-        (REPORT_DIR / f"{slug}-aktuell.md").write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
-        return path
+        bericht = self.summary(lines)
+        datei = pruefnachweis.datei_fuer(slug, zeit)
+        markdown, _, _ = pruefnachweis.render(
+            {
+                "titel": "Skills" if self.regel_modus == "skills" else "Starter",
+                "befehle": [f"make check-{self.regel_modus}"],
+                "berichte": [bericht],
+                "nebenlaeufe": {},
+                "zeit": zeit,
+                "datei": datei,
+                "git": self.git,
+            }
+        )
+        summary = json.dumps({**bericht, "datei": datei}, ensure_ascii=False, indent=2)
+        pruefnachweis.schreibe(slug, zeit, summary + "\n", "json")
+        return pruefnachweis.schreibe(slug, zeit, markdown)
 
 
 def register(config: pytest.Config, titel: str, regel_modus: str) -> None:

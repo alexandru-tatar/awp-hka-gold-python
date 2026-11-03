@@ -65,7 +65,7 @@ Ohne das Portal davor antworten die Seiten der App mit 401. Das ist richtig, den
 2. Im Container prüft der `HEALTHCHECK` des Images dasselbe alle 10 Sekunden, nach 3 Fehlversuchen gilt der Container als ungesund. Der Prüfbefehl lautet `python -m platform_sdk.healthcheck`.
 3. Automatische Tests ausführen: `make test`.
 4. Regeln und Portal-Bibliothek prüfen: `make lint`.
-5. Den Starter als Ganzes prüfen (Plattform-Team): `make check`. Der Bericht liegt danach in `build/pruefberichte/`. Mit `CHECK_DOCKER=1 make check-starter` wird zusätzlich der Container gebaut und gestartet.
+5. Den Starter als Ganzes prüfen (Plattform-Team): `make check`. Der Prüfnachweis nach der Confluence-Vorlage liegt danach in `build/pruefberichte/pruefnachweis-aktuell.md`. Mit `CHECK_DOCKER=1 make check-starter` wird zusätzlich der Container gebaut und gestartet.
 
 <!-- TODO: Logs ansehen und typische Störungen ergänzen. Im Repository gibt es dafür keinen Befehl. Geplant: platform.sh status, platform.sh logs, platform.sh check (claude-proposal/10-platform-ops.md §5, Fehlermatrix §12). -->
 

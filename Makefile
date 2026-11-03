@@ -36,7 +36,13 @@ sdk-update: ## Portal-Bibliothek (platform_sdk/) durch die freigegebene Kopie er
 	uv run python -m platform_sdk.verify_tree
 	@echo "platform_sdk/ ist jetzt Version $$(cat platform_sdk/VERSION)."
 
-check: check-skills check-starter ## alle Selbsttests des Golden Master
+# Läuft auch nach einem Fehler weiter, damit der Prüfnachweis (Vorlage B, Checkliste Code-Review) immer entsteht.
+check: ## alle Selbsttests, make lint und make test; schreibt build/pruefberichte/pruefnachweis-aktuell.md
+	@status=0; \
+	$(MAKE) --no-print-directory check-skills || status=1; \
+	$(MAKE) --no-print-directory check-starter || status=1; \
+	uv run python tools/tests/pruefnachweis.py || status=1; \
+	exit $$status
 
 check-skills: ## Skills in .agents/skills prüfen (Form, Regeln, Beispiele, Verweise)
 	uv run pytest -q -p no:cacheprovider --junitxml=build/pruefberichte/skills.xml tools/tests/skills
