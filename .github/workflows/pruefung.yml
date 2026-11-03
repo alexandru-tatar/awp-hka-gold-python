@@ -122,7 +122,7 @@ jobs:
 
       - name: uv einrichten
         if: ${{ steps.sprache.outputs.art == 'python' }}
-        uses: astral-sh/setup-uv@v10
+        uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
           cache-dependency-glob: ${{ github.event.repository.name }}/uv.lock
