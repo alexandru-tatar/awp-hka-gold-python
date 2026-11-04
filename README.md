@@ -2,6 +2,12 @@
 
 Golden Master für Portal-Apps in Python (FastAPI). Der Starter enthält eine leere Seite; Ihre App bauen Sie darauf auf.
 
+## Entwickeln im DevContainer
+
+Für die Entwicklung empfehlen wir den vorbereiteten DevContainer. Python, uv und Make müssen dafür nicht auf dem eigenen Rechner installiert werden. Die Einrichtung und Nutzung beschreibt die [DevContainer-Anleitung](.devcontainer/README.md).
+
+## Projekt konfigurieren
+
 Zuerst in `manifest.json` Name, Kurzname (`slug`), Kategorie, Menü und Rollen eintragen.
 
 ## Befehle
@@ -12,9 +18,9 @@ Zuerst in `manifest.json` Name, Kurzname (`slug`), Kategorie, Menü und Rollen e
 | `make start` | App wie im Betrieb starten (ohne Test-Anmeldung) |
 | `make test` | automatische Tests |
 | `make lint` | Regeln prüfen (Ruff, Formatierung, Portal-Bibliothek) |
-| `make docker` | Container bauen |
+| `make docker` | Produktionscontainer bauen; benötigt Docker auf dem Host und wird auf dem Host ausgeführt, nicht im DevContainer. |
 
-Voraussetzung: [`uv`](https://docs.astral.sh/uv/). Python 3.14 holt `uv` selbst.
+Bei Entwicklung ohne DevContainer benötigen Sie [`uv`](https://docs.astral.sh/uv/). Python 3.14 holt `uv` dann selbst.
 
 ## Aufbau
 

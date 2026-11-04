@@ -1,0 +1,23 @@
+name: DevContainer
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Run checks in DevContainer
+        uses: devcontainers/ci@v0.3
+        with:
+          push: never
+          runCmd: make check
