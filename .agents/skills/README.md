@@ -71,7 +71,7 @@ Ein Lauf ohne Abweichungen wird als **Goldener Standard** gespeichert. Jede neue
 
 ## Offene Punkte
 
-1. **Vorläufiges SDK:** `platform_sdk/` ist eine Kopie des Portal-SDK in Version `1.0.0-dev` (Quelle: `portal/sdk/`, dort `make sdk-release`; hier `make sdk-update`). Was dem SDK noch fehlt, steht in `portal/sdk/README.md`. Ändern sich dort Namen, werden die Beispiele in den Skills angepasst.
+1. **Vorläufiges SDK:** `platform_sdk/` ist eine Kopie des Portal-SDK in Version `1.0.1-dev` (Quelle: `portal/sdk/`, dort `make sdk-release`; hier `make sdk-update`). Was dem SDK noch fehlt, steht in `portal/sdk/README.md`. Ändern sich dort Namen, werden die Beispiele in den Skills angepasst.
 2. **SDK-Namen:** `platform_sdk/` gibt es erst in Phase 2. Im vorläufigen SDK gibt `portal.requires(...)` die Person zurück. Die Skills nutzen trotzdem beides getrennt (`dependencies=[…]` und `Depends(portal.user)`); das bleibt richtig, falls das endgültige SDK nur prüft.
 3. **Lint-Regeln:** `pyproject.toml` verbietet über Ruff (`flake8-tidy-imports.banned-api`) `requests`, `httpx`, `aiohttp`, `urllib3`, `urllib.request`, `http.client`, `socket`, `jwt`, `jose`, `authlib`, `passlib`, `bcrypt`, `itsdangerous`, `fastapi_login`, `fastapi_users`, `starlette.middleware.sessions` und `Markup`. `platform_sdk/` ist von Ruff ausgenommen. Noch ohne Prüfung: `set_cookie`, `request.cookies`, `|safe` in Vorlagen, Stylelint für `app.css` (braucht Node). Dass `docs_url`, `redoc_url` und `openapi_url` auf `None` stehen, prüft `tests/test_app.py`.
 4. **Links in Vorlagen:** Die Prüfung auf `href="/` und `src="/` (R-PORT-3) muss die Jinja2-Vorlagen in `src/app/templates/` lesen. Klären, ob das Ruff oder ein eigenes Skript übernimmt.

@@ -25,7 +25,7 @@ src/app/views.py       Seiten der App
 src/app/templates/     Jinja2-Vorlagen (nur Seiteninhalt)
 src/app/static/app.css eigenes CSS (nur Variablen des Portals)
 tests/                 Tests (pytest)
-platform_sdk/          Portal-Bibliothek (verwaltet, nicht ändern; vorläufige Fassung 1.0.0-dev)
+platform_sdk/          Portal-Bibliothek (verwaltet, nicht ändern; vorläufige Fassung 1.0.1-dev)
 .agents/skills/        Regeln für die KI
 ```
 
