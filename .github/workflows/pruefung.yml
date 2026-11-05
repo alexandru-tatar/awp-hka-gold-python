@@ -1,0 +1,161 @@
+# Prüfung für Pull Requests und Pushes auf develop (HKA-47)
+# Verwaltete Datei: nicht verändern (sonst PF-108). In JavaScript- und Python-Golden-Master gleich.
+#
+# Der Job heißt "check". Diesen Namen trägt der Branchschutz auf main als Pflicht-Check ein.
+# Ablauf: Code holen, Secret-Scan (Gitleaks), make check (Selbsttests, make lint, make test, Prüfnachweis),
+# Zusammenfassung und Prüfberichte als Artefakt. Beschreibung: docs/pipeline.md
+
+name: Prüfung
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pruefung-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GITLEAKS_VERSION: "8.30.1"
+  GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CHECK_DOCKER: "1" # make check baut und startet zusätzlich den Container
+      UV_LOCKED: "1" # uv ändert uv.lock nie, ein veralteter Stand ist ein Fehler
+    defaults:
+      run:
+        working-directory: ${{ github.event.repository.name }}
+
+    steps:
+      # Das Repository liegt in einem Ordner mit seinem Namen. So kann das Schwester-Repository
+      # daneben liegen, wo die Selbsttests es erwarten (../awp-hka-gold-python bzw. ../awp-hka-gold-js).
+      # Bei einem Pull Request wird dessen letzter Commit geprüft, nicht der Merge-Commit,
+      # damit der Prüfnachweis einen Commit nennt, den es im Repository gibt.
+      - name: Code holen
+        uses: actions/checkout@v7
+        with:
+          path: ${{ github.event.repository.name }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Nur die Golden Master selbst. Die Selbsttests vergleichen sie mit dem anderen Golden Master
+      # (../awp-hka-gold-python bzw. ../awp-hka-gold-js) und mit dem freigegebenen Portal-SDK
+      # (../portal/sdk/sdk-releases.json). In einer daraus angelegten App fehlen beide, die Prüfungen
+      # stehen dort als "übersprungen" im Prüfbericht.
+      # Gibt es dort einen Zweig mit demselben Namen wie hier, wird er genommen: eine Regel, die in beiden
+      # Golden Mastern gleich geändert wird, besteht den Gleichlauf schon vor dem Merge.
+      - name: Schwester-Repository und Portal holen
+        if: ${{ startsWith(github.event.repository.name, 'awp-hka-gold-') }}
+        working-directory: ${{ github.workspace }}
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+          OWNER: ${{ github.repository_owner }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          case "$REPO_NAME" in
+            awp-hka-gold-js) other=awp-hka-gold-python ;;
+            awp-hka-gold-python) other=awp-hka-gold-js ;;
+            *) echo "Kein Schwester-Repository für $REPO_NAME."; exit 0 ;;
+          esac
+          hole() { # hole <Repository> <Ordner>
+            local url="https://github.com/$OWNER/$1.git" ref=main
+            if git ls-remote --exit-code --heads "$url" "refs/heads/$BRANCH" > /dev/null; then
+              ref="$BRANCH"
+            fi
+            echo "$1 nach $2 (Zweig $ref)"
+            git clone --depth 1 --branch "$ref" -- "$url" "$2"
+          }
+          hole "$other" "$other"
+          hole awp-hka-intranet-portal portal
+
+      # Läuft zuerst und bricht die Prüfung nicht ab: das Ergebnis wird erst am Ende ausgewertet,
+      # damit make check und der Prüfnachweis auch bei einem Fund entstehen.
+      - name: Secret-Scan (Gitleaks)
+        id: gitleaks
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl --fail --silent --show-error --location \
+            --output "$RUNNER_TEMP/$archive" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/$archive" | sha256sum --check --status
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" git . --log-opts="HEAD" --redact --no-banner --verbose
+
+      - name: Sprache erkennen
+        id: sprache
+        run: |
+          if [ -f package.json ]; then
+            echo "art=js" >> "$GITHUB_OUTPUT"
+          elif [ -f pyproject.toml ]; then
+            echo "art=python" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Weder package.json noch pyproject.toml gefunden."
+            exit 1
+          fi
+
+      - name: Node.js einrichten
+        if: ${{ steps.sprache.outputs.art == 'js' }}
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: ${{ github.event.repository.name }}/.nvmrc
+          cache: npm
+          cache-dependency-path: ${{ github.event.repository.name }}/package-lock.json
+
+      - name: Abhängigkeiten installieren (npm ci)
+        if: ${{ steps.sprache.outputs.art == 'js' }}
+        run: npm ci --no-audit --no-fund
+
+      - name: uv einrichten
+        if: ${{ steps.sprache.outputs.art == 'python' }}
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+          cache-dependency-glob: ${{ github.event.repository.name }}/uv.lock
+
+      - name: Abhängigkeiten installieren (uv sync)
+        if: ${{ steps.sprache.outputs.art == 'python' }}
+        run: uv sync
+
+      - name: make check
+        run: make check
+
+      - name: Zusammenfassung des Laufs
+        if: ${{ !cancelled() }}
+        run: |
+          nachweis=build/pruefberichte/pruefnachweis-aktuell.md
+          if [ -f "$nachweis" ]; then
+            # Prüfnachweis (Vorlage B), Checkliste Code-Review und Ergebnis der Läufe; die Berichte im Detail liegen im Artefakt
+            awk '/^## 4\./ { exit } { print }' "$nachweis" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Kein Prüfnachweis erzeugt: make check ist nicht bis zum Ende gelaufen." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Prüfberichte als Artefakt speichern
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: pruefberichte
+          path: ${{ github.event.repository.name }}/build/pruefberichte/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Ergebnis des Secret-Scans
+        if: ${{ !cancelled() && steps.gitleaks.outcome == 'failure' }}
+        run: |
+          echo "::error::Gitleaks hat ein Geheimnis im Verlauf gefunden oder konnte nicht laufen. Siehe Schritt 'Secret-Scan (Gitleaks)'."
+          exit 1
