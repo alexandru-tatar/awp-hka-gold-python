@@ -1,5 +1,5 @@
 # Verwaltete Datei: nicht verändern (sonst PF-108). Eigene Ergänzungen in AGENTS.local.md beschreiben.
-# Befehle für den Alltag: make dev | start | test | lint | docker | deploy
+# Befehle für den Alltag: make dev | start | test | lint | docker | deploy | deploy-local
 # Wartung: make lock | sdk-update
 # Selbsttests des Golden Master (Plattform-Team): make check | check-skills | check-starter
 
@@ -8,7 +8,7 @@ IMAGE ?= hka/portal-app:0.1.0
 # Gebaute SDK-Kopie aus dem Portal-Repository (dort: make sdk-release)
 SDK_DIST ?= ../portal/sdk/dist/python/platform_sdk
 
-.PHONY: dev start test lint docker deploy lock sdk-update check check-skills check-starter
+.PHONY: dev start test lint docker deploy deploy-local lock sdk-update check check-skills check-starter
 
 dev:     ## App mit Test-Anmeldung starten (http://localhost:8080)
 	PORTAL_DEV=1 uv run uvicorn app.main:app --reload --app-dir src --host 0.0.0.0 --port 8080
@@ -29,6 +29,9 @@ docker:  ## Container bauen
 
 deploy:  ## App auf die Test-VM bringen: make deploy VM=<host> (tools/deploy.sh)
 	bash tools/deploy.sh
+
+deploy-local: ## App in den lokalen Stack bringen (Gateway-Repository: make server-up), dann http://localhost:18080/apps/<slug>/
+	ZIEL=lokal bash tools/deploy.sh
 
 lock:    ## Abhängigkeiten neu festschreiben (uv.lock)
 	uv lock --upgrade
