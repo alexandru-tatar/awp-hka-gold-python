@@ -1,14 +1,12 @@
-"""Clients je System (06 §8)."""
+"""Noten: Aufrufe des Noten-Adapters (Beschreibung: README.md in diesem Ordner)."""
 
 from __future__ import annotations
 
 from pydantic import ValidationError
 
-from ..errors import AdapterError
+from ...errors import AdapterError
+from ..transport import CONTRACT_VIOLATION, Transport
 from .models import GradeList
-from .transport import Transport
-
-CONTRACT_VIOLATION = "Das System hat unerwartete Daten geliefert. Bitte versuchen Sie es später noch einmal."
 
 
 class NotenClient:
@@ -21,4 +19,4 @@ class NotenClient:
         try:
             return GradeList.model_validate(data)
         except ValidationError:
-            raise AdapterError(502, "contract-violation", CONTRACT_VIOLATION) from None
+            raise AdapterError(502, CONTRACT_VIOLATION, "") from None
