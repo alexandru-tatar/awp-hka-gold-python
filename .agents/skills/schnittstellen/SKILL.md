@@ -9,6 +9,8 @@ Andere Systeme erreichen Sie nur über `portal.adapters`. Die App hat im Betrieb
 
 Was jedes System kann, steht in seiner Beschreibung im SDK: `platform_sdk/adapters/noten/README.md` und `platform_sdk/adapters/bwsync/README.md`. Für Mail und E-Akte gibt es noch keine Beschreibung; diese Systeme gibt es für Apps also noch nicht. Die Regeln des SDK stehen in der README des Portal-SDK (Abschnitt „Regeln“).
 
+Sollen Dateien in bwSync&Share liegen, nutzen Sie `portal.adapters.bwsync` (Scope im Manifest). Sonst keine Schnittstelle.
+
 ## Regeln
 
 | ID | Regel | Stufe |
