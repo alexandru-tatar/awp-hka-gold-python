@@ -1,4 +1,4 @@
-"""Datenmodelle nach den OpenAPI-Dateien des Adapter-Dienstes (05 §4). Streng: unbekannte Felder sind ein Fehler."""
+"""Noten: Datenmodelle der Adapter-Antworten. Streng: unbekannte Felder sind ein Fehler."""
 
 from __future__ import annotations
 

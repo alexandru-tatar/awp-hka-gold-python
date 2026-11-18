@@ -7,3 +7,13 @@ build/
 .env
 .env.*
 .DS_Store
+
+# Schlüssel, Datenbanken und Secret-Ordner nie committen (auch in Apps, die aus diesem Golden Master entstehen).
+# secrets/ in jeder Tiefe; Ausnahme: .agents/skills/secrets/ ist ein Skill und bleibt erfasst.
+*.pem
+*.key
+*.sqlite
+*.sqlite3
+*.db
+secrets/
+!.agents/skills/secrets/

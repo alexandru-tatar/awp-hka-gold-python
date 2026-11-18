@@ -60,7 +60,7 @@ Nehmen Sie immer die echten Angaben aus der Meldung, nicht aus diesem Beispiel.
 >
 > **Warum das wichtig ist:** So bleiben die Daten geschützt, und die App läuft im Betrieb ohne Internet.
 >
-> **Was Sie tun:** Holen Sie die Daten mit `portal.adapters`. Die Beschreibung steht in `docs/schnittstellen/noten.md`. Prüfen Sie danach mit `make lint`.
+> **Was Sie tun:** Holen Sie die Daten mit `portal.adapters`. Die Beschreibung steht in `platform_sdk/adapters/noten/README.md`. Prüfen Sie danach mit `make lint`.
 
 ## Gut / schlecht
 
