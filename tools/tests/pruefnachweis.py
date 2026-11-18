@@ -20,6 +20,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -81,7 +82,10 @@ def stempel(d: dt.datetime) -> str:
 
 
 def rel(path: Path) -> str:
-    return path.relative_to(ROOT).as_posix()
+    try:
+        return path.relative_to(ROOT).as_posix()
+    except ValueError:  # Ordner außerhalb des Repositories (Selbsttest des Prüfnachweises)
+        return path.as_posix()
 
 
 def _git(*args: str) -> str | None:
@@ -95,10 +99,10 @@ def _git(*args: str) -> str | None:
 def git_info() -> dict:
     """Commit, Zustand und eigene Commits gegenüber dem Zielzweig (main oder GITHUB_BASE_REF)."""
     if _git("rev-parse", "--git-dir") is None:
-        return {"stand": "unbekannt", "commit": None, "commits": None, "basis": None}
+        return {"stand": "unbekannt", "commit": None, "sauber": None, "commits": None, "basis": None}
     commit = _git("rev-parse", "--short", "HEAD")
     if commit is None:
-        return {"stand": "ohne Commit", "commit": None, "commits": None, "basis": None}
+        return {"stand": "ohne Commit", "commit": None, "sauber": None, "commits": None, "basis": None}
     sauber = not _git("status", "--porcelain")
     ziel = os.environ.get("GITHUB_BASE_REF") or "main"
     basis = next((r for r in (f"origin/{ziel}", ziel) if _git("rev-parse", "--verify", "--quiet", r) is not None), None)
@@ -106,21 +110,38 @@ def git_info() -> dict:
     return {
         "stand": f"{commit} ({'sauber' if sauber else 'mit lokalen Änderungen'})",
         "commit": commit,
+        "sauber": sauber,
         "commits": None if log is None else [s for s in log.split("\n") if s],
         "basis": basis,
     }
 
 
-def ci_info() -> dict:
-    """Angaben aus der Pipeline (GitHub Actions); lokal leer."""
-    env = os.environ
+def ci_info(env: Mapping[str, str] | None = None) -> dict:
+    """Angaben aus der Pipeline (GitHub Actions); lokal leer. `env` nur für die Selbsttests."""
+    env = os.environ if env is None else env
     ci = env.get("GITHUB_ACTIONS") == "true" or env.get("CI") == "true"
     server = env.get("GITHUB_SERVER_URL") or "https://github.com"
     repo = env.get("GITHUB_REPOSITORY")
     lauf = f"{server}/{repo}/actions/runs/{env['GITHUB_RUN_ID']}" if repo and env.get("GITHUB_RUN_ID") else None
     pr = re.match(r"^refs/pull/(\d+)/", env.get("GITHUB_REF", ""))
     pull_request = env.get("PR_URL") or (f"{server}/{repo}/pull/{pr.group(1)}" if repo and pr else None)
-    return {"ci": ci, "lauf": lauf, "pull_request": pull_request}
+    return {
+        "ci": ci,
+        "repo": repo,
+        "lauf": lauf,
+        "pull_request": pull_request,
+        "ereignis": env.get("GITHUB_EVENT_NAME"),
+        "zweig": env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF_NAME"),
+    }
+
+
+def repo_name(ci: dict) -> str:
+    """owner/name: in der Pipeline aus GITHUB_REPOSITORY, lokal aus dem Remote origin, sonst der Ordnername."""
+    if ci.get("repo"):
+        return ci["repo"]
+    url = _git("remote", "get-url", "origin") or ""
+    treffer = re.search(r"[:/]([^/:]+/[^/]+?)(?:\.git)?/?$", url)
+    return treffer.group(1) if treffer else ROOT.name
 
 
 def lauf_zeile(b: dict) -> str:
@@ -202,21 +223,55 @@ def bewerte(beleg, ctx: dict) -> tuple[bool, str]:
     return False, "prüft der Reviewer (nicht vollständig automatisch geprüft)"
 
 
+def stand_zeile(ctx: dict) -> str:
+    """Zeile „Stand“: Repo, Commit, Pull Request; in der Pipeline auch Link zum Lauf."""
+    git, ci = ctx["git"], ctx["ci"]
+    commit = git.get("commit") or "unbekannt"
+    if git.get("sauber") is False:
+        commit += " mit lokalen Änderungen"
+    if ci["pull_request"]:
+        pr = ci["pull_request"]
+    elif ci["ci"]:
+        ereignis, zweig = ci["ereignis"] or "unbekanntem Ereignis", ci["zweig"] or "unbekanntem Zweig"
+        pr = f"kein PR, weil Lauf nach {ereignis} auf {zweig}"
+    else:
+        pr = OFFEN
+    lauf = f", Lauf {ci['lauf']}" if ci["lauf"] else ""
+    return f"Stand: {ctx['repo']}, Commit {commit}, Pull Request {pr}{lauf}"
+
+
+def beleg_zeile(name: str, ok: bool | None, befehle: list[str], ctx: dict) -> str:
+    """Zeile wie ein AK: Urteil, Beleg, Art des Belegs. `ok` None: der Lauf hat den Punkt nicht geprüft."""
+    ci = ctx["ci"]
+    if ok is None:
+        return f"{name}: {OFFEN} – Beleg: nur mit make check – {OFFEN} (selbst ausgeführt / Pipeline / nur gelesen)"
+    lauf = f", Lauf {ci['lauf']}" if ci["lauf"] else ""
+    art = "Pipeline" if ci["ci"] else "selbst ausgeführt"
+    return f"{name}: {'erfüllt' if ok else 'nicht erfüllt'} – Beleg: {', '.join(befehle)}{lauf} – {art}"
+
+
 def vorlage_b(ctx: dict) -> list[str]:
-    """Block „Vorlage B: Prüfnachweis“: gleiche Zeilen wie in Confluence, belegbare Felder ausgefüllt."""
-    befehle = ctx["befehle"]
-    pruefweg = befehle[0] + (f": {', '.join(befehle[1:])}" if len(befehle) > 1 else "")
-    nachweis = " · ".join(x for x in (ctx["ci"]["lauf"], f"Prüfbericht {ctx['datei']}") if x)
+    """Block „Vorlage B: Prüfnachweis“ (Entwurf 0.2): Zeilen und Reihenfolge wie in Confluence,
+    dazu Lint und Tests wie ein Akzeptanzkriterium. Urteil, Reviewer und AK setzt der Reviewer."""
+    neben = ctx["nebenlaeufe"]
+    lint = neben["lint"]["ok"] if "lint" in neben else None
+    tests = None
+    if "test" in neben:
+        tests = neben["test"]["ok"] and all(b["fehler"] == 0 for b in ctx["berichte"])
+    test_befehle = ["make test", *(b for _, b, _ in LAEUFE)]
+    ak = f"{OFFEN} – Beleg: [Test, Befehl oder Link] – {OFFEN} (selbst ausgeführt / Pipeline / nur gelesen)"
     return [
-        "Prüfnachweis (vom Reviewer ausfüllen, alle [OFFEN] ersetzen)",
-        f"Geprüft von: {OFFEN}",
-        f"Datum: {datum(ctx['zeit'])}",
-        f"Version/Commit: {ctx['git']['stand']}",
-        f"Pull Request: {ctx['ci']['pull_request'] or OFFEN}",
-        f"Prüfweg: automatisch ({pruefweg})",
-        f"Ergebnis je Akzeptanzkriterium: {OFFEN} (AK1 erfüllt / nicht erfüllt / nicht prüfbar, AK2 …)",
-        f"Nachweis (Link Pipeline / Protokoll / Screenshot): {nachweis} · Gesamtergebnis {ctx['ergebnis']}",
-        f"Auf eigenem Rechner ausgeführt: {'nein (Pipeline)' if ctx['ci']['ci'] else 'ja'}",
+        "Prüfnachweis",
+        f"Urteil: {OFFEN} (abgenommen / zurück an Umsetzung / nicht prüfbar)",
+        f"Geprüft von, Datum: {OFFEN}",
+        stand_zeile(ctx),
+        f"AK1: {ak}",
+        f"AK2: {ak}",
+        beleg_zeile("Lint", lint, ["make lint"], ctx),
+        beleg_zeile("Tests", tests, test_befehle, ctx),
+        f"Muss: {OFFEN} (Befund mit Fundstelle oder „keine“)",
+        f"Sollte: {OFFEN} (Befund oder „keine“)",
+        f"Nicht geprüft: {OFFEN} (was und warum, oder „nichts“)",
         f"Code-Review-Checkliste durchgegangen: {OFFEN} (ja / nein)",
     ]
 
@@ -228,6 +283,7 @@ def render(ctx: dict) -> tuple[str, list[str], bool]:
     """
     ctx.setdefault("git", git_info())
     ctx.setdefault("ci", ci_info())
+    ctx.setdefault("repo", repo_name(ctx["ci"]))
     ok = all(b["fehler"] == 0 for b in ctx["berichte"]) and all(lauf["ok"] for lauf in ctx["nebenlaeufe"].values())
     ctx["ergebnis"] = "BESTANDEN" if ok else "NICHT BESTANDEN"
     block = vorlage_b(ctx)
@@ -240,7 +296,7 @@ def render(ctx: dict) -> tuple[str, list[str], bool]:
     md += ["| Feld | Inhalt |", "| --- | --- |"]
     md.append(f"| Erzeugt mit | `{ctx['befehle'][0]}` |")
     md.append(f"| Zeitpunkt | {ctx['zeit']:%d.%m.%Y, %H:%M} Uhr |")
-    md.append(f"| Repository | {ROOT.name} · Stand {ctx['git']['stand']} |")
+    md.append(f"| Repository | {ctx['repo']} · Stand {ctx['git']['stand']} |")
     md.append(f"| Ausgeführt | {ausgefuehrt} |")
     md.append(f"| Gesamtergebnis | **{ctx['ergebnis']}** |")
     md.append(
@@ -251,8 +307,9 @@ def render(ctx: dict) -> tuple[str, list[str], bool]:
 
     md += ["## 1. Prüfnachweis (Vorlage B)", ""]
     md += [
-        "Sobald das Ticket auf **In Review** geht: diesen Block als Kommentar ins Jira-Ticket kopieren und den "
-        "Reviewer zuweisen. Der Reviewer **bearbeitet diesen Kommentar** und ersetzt alle [OFFEN].",
+        "Der Reviewer legt den Prüfnachweis an: Er kopiert diesen Block als Kommentar ins Jira-Ticket, prüft jeden "
+        "Beleg selbst und ersetzt alle [OFFEN]. Den Block nur aus einem Pipeline-Lauf oder aus dem eigenen "
+        "`make check` nehmen, nicht aus dem Lauf der umsetzenden Person: Ihre Aussagen sind kein Beleg.",
         "",
     ]
     md += ["```text", *block, "```", ""]
@@ -295,18 +352,18 @@ def render(ctx: dict) -> tuple[str, list[str], bool]:
     return "\n".join(md), konsole, ok
 
 
-def schreibe(slug: str, zeit: dt.datetime, inhalt: str, endung: str = "md") -> Path:
+def schreibe(slug: str, zeit: dt.datetime, inhalt: str, endung: str = "md", verzeichnis: Path = REPORT_DIR) -> Path:
     """Schreibt Bericht mit Zeitstempel und als „-aktuell“; gibt den Pfad der Datei mit Zeitstempel zurück."""
-    REPORT_DIR.mkdir(parents=True, exist_ok=True)
-    path = REPORT_DIR / f"{slug}-{stempel(zeit)}.{endung}"
+    verzeichnis.mkdir(parents=True, exist_ok=True)
+    path = verzeichnis / f"{slug}-{stempel(zeit)}.{endung}"
     path.write_text(inhalt, encoding="utf-8")
-    (REPORT_DIR / f"{slug}-aktuell.{endung}").write_text(inhalt, encoding="utf-8")
+    (verzeichnis / f"{slug}-aktuell.{endung}").write_text(inhalt, encoding="utf-8")
     return path
 
 
-def datei_fuer(slug: str, zeit: dt.datetime) -> str:
+def datei_fuer(slug: str, zeit: dt.datetime, verzeichnis: Path = REPORT_DIR) -> str:
     """Datei des Berichts zuerst festlegen, damit der Nachweis auf sie verweisen kann."""
-    return rel(REPORT_DIR / f"{slug}-{stempel(zeit)}.md")
+    return rel(verzeichnis / f"{slug}-{stempel(zeit)}.md")
 
 
 def laufe(befehl: str) -> dict:
@@ -316,13 +373,15 @@ def laufe(befehl: str) -> dict:
     return {"ok": result.returncode == 0, "ausgabe": ausgabe}
 
 
-def gesamt() -> int:
-    """make check: Selbsttests zusammenführen, make lint und make test ausführen, gemeinsamen Nachweis schreiben."""
+def gesamt(verzeichnis: Path = REPORT_DIR, fuehre_aus=laufe) -> int:
+    """make check: Selbsttests zusammenführen, make lint und make test ausführen, gemeinsamen Nachweis schreiben.
+
+    `verzeichnis` und `fuehre_aus` ersetzen die Selbsttests des Prüfnachweises (temporärer Ordner, falsche Läufe)."""
     zeit = dt.datetime.now()
     git = git_info()
     berichte, fehlend = [], []
     for art, befehl, _ in LAEUFE:
-        path = REPORT_DIR / f"pruefbericht-{art}-aktuell.json"
+        path = verzeichnis / f"pruefbericht-{art}-aktuell.json"
         if not path.exists():
             fehlend.append(befehl)
             continue
@@ -334,12 +393,12 @@ def gesamt() -> int:
     if fehlend:
         print(f" Prüfnachweis nicht erstellt. Zuerst ausführen: {', '.join(fehlend)}", file=sys.stderr)
         return 1
-    nebenlaeufe = {art: laufe(befehl) for art, befehl in NEBENLAEUFE}
-    datei = datei_fuer("pruefnachweis", zeit)
+    nebenlaeufe = {art: fuehre_aus(befehl) for art, befehl in NEBENLAEUFE}
+    datei = datei_fuer("pruefnachweis", zeit, verzeichnis)
     befehle = ["make check", *(b for _, b, _ in LAEUFE), *(b for _, b in NEBENLAEUFE)]
     ctx = {"titel": "Gesamt", "befehle": befehle, "berichte": berichte, "nebenlaeufe": nebenlaeufe}
     markdown, konsole, ok = render({**ctx, "zeit": zeit, "datei": datei, "git": git})
-    path = schreibe("pruefnachweis", zeit, markdown)
+    path = schreibe("pruefnachweis", zeit, markdown, verzeichnis=verzeichnis)
     print("\n".join(konsole))
     print()
     print(f" Gesamtergebnis: {'BESTANDEN' if ok else 'NICHT BESTANDEN'}")
@@ -348,5 +407,56 @@ def gesamt() -> int:
     return 0 if ok else 1
 
 
+# Festes Beispiel für docs/pruefnachweis-beispiel.md: Lint grün, Tests rot (AK4). Gleich in beiden Golden Mastern.
+BEISPIEL_REPO = "alexandru-tatar/awp-hka-gold-python"
+
+
+def beispiel() -> dict:
+    stand = "1a2b3c4 (sauber)"
+    bericht = lambda art, titel: {  # noqa: E731
+        "art": art,
+        "titel": titel,
+        "stand": stand,
+        "ergebnis": "BESTANDEN",
+        "pruefungen": 10,
+        "einzelfaelle": 20,
+        "fehler": 0,
+        "uebersprungen": 0,
+        "regeln": {r: "passed" for r in ("R-SEC-1", "R-SEC-2", "R-PORT-1", "R-PORT-2", "R-PORT-4")},
+        "bericht": [f" Beispiel: {titel}"],
+    }
+    lauf = f"https://github.com/{BEISPIEL_REPO}/actions/runs/123456789"
+    return {
+        "titel": "Gesamt",
+        "befehle": ["make check", *(b for _, b, _ in LAEUFE), *(b for _, b in NEBENLAEUFE)],
+        "berichte": [bericht("skills", "Prüfbericht Skills"), bericht("starter", "Prüfbericht Starter")],
+        "nebenlaeufe": {
+            "lint": {"ok": True, "ausgabe": []},
+            "test": {"ok": False, "ausgabe": ["FAILED tests/test_app.py::test_beispiel - assert 1 == 2"]},
+        },
+        "zeit": dt.datetime(2026, 11, 18, 12, 0, 0),
+        "datei": "build/pruefberichte/pruefnachweis-2026-11-18_12-00-00.md",
+        "repo": BEISPIEL_REPO,
+        "git": {
+            "stand": stand,
+            "commit": "1a2b3c4",
+            "sauber": True,
+            "commits": ["HKA-62: Beispiel"],
+            "basis": "origin/main",
+        },
+        "ci": {
+            "ci": True,
+            "repo": BEISPIEL_REPO,
+            "lauf": lauf,
+            "pull_request": f"https://github.com/{BEISPIEL_REPO}/pull/12",
+            "ereignis": "pull_request",
+            "zweig": "HKA62",
+        },
+    }
+
+
 if __name__ == "__main__":
+    if "--beispiel" in sys.argv:  # make check ruft das nicht auf; erzeugt docs/pruefnachweis-beispiel.md
+        sys.stdout.write(render(beispiel())[0])
+        sys.exit(0)
     sys.exit(gesamt())
