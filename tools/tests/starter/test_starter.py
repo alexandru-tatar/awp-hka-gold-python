@@ -2,7 +2,7 @@
 
 Prüft, dass der Starter die Vorgaben der Plattform erfüllt: Aufbau, Manifest, Abhängigkeiten,
 Ruff-Verbote, Container, Gerüst der App, Anmeldung auf jeder Route, unveränderte
-Portal-Bibliothek und Gleichlauf mit dem JavaScript-Golden-Master. Die Tests bleiben grün,
+Portal-Bibliothek, Prüfnachweis und Gleichlauf mit dem JavaScript-Golden-Master. Die Tests bleiben grün,
 wenn eine Person ihre App im Starter baut, solange sie sich an die Regeln hält.
 
 Aufruf: make check-starter            (ohne Container)
@@ -20,6 +20,7 @@ import subprocess
 import time
 import urllib.request
 
+import pruefnachweis
 import pytest
 from common import JS_ROOT, ROOT, banned_modules, make_targets, manifest_errors, pruefung, pyproject
 from fastapi.routing import APIRoute
@@ -433,6 +434,104 @@ def test_container():
         subprocess.run(["docker", "stop", name], capture_output=True)
 
 
+# ── Prüfnachweis (HKA-62, Vorlage B 0.2) ─────────────────────────────────────
+
+VORLAGE_B_ZEILEN = [
+    "Prüfnachweis",
+    "Urteil:",
+    "Geprüft von, Datum:",
+    "Stand:",
+    "AK1:",
+    "AK2:",
+    "Lint:",
+    "Tests:",
+    "Muss:",
+    "Sollte:",
+    "Nicht geprüft:",
+    "Code-Review-Checkliste durchgegangen:",
+]  # Reihenfolge wie auf der Confluence-Seite „Vorlage: User Story, Akzeptanzkriterien und Prüfnachweis“
+BEISPIEL_DATEI = ROOT / "docs" / "pruefnachweis-beispiel.md"
+
+
+def vorlage_b_block(markdown: str) -> list[str]:
+    return re.search(r"```text\n(.*?)\n```", markdown, re.S).group(1).split("\n")
+
+
+def nachweis(ci_env: dict[str, str], lint_ok: bool = True, test_ok: bool = True) -> list[str]:
+    ctx = pruefnachweis.beispiel()
+    ctx["ci"] = pruefnachweis.ci_info(ci_env)
+    ctx.pop("repo")
+    ctx["nebenlaeufe"] = {"lint": {"ok": lint_ok, "ausgabe": []}, "test": {"ok": test_ok, "ausgabe": []}}
+    return vorlage_b_block(pruefnachweis.render(ctx)[0])
+
+
+@pruefung("Prüfnachweis", "Vorlage B: alle Felder in der Reihenfolge der Confluence-Seite, Urteil [OFFEN]")
+def test_nachweis_felder():
+    block = nachweis({})
+    assert [z.split(" ")[0] if z == "Prüfnachweis" else z[: z.index(":") + 1] for z in block] == VORLAGE_B_ZEILEN
+    assert block[1].startswith("Urteil: [OFFEN]")
+    assert block[3].startswith("Stand: ") and ", Commit " in block[3]
+
+
+@pruefung("Prüfnachweis", "Lokaler Lauf: Stand mit Repo und Commit, Lint und Tests selbst ausgeführt")
+def test_nachweis_lokal():
+    block = nachweis({})
+    assert re.match(r"Stand: [^,]+, Commit 1a2b3c4, Pull Request \[OFFEN\]$", block[3])
+    assert block[6] == "Lint: erfüllt – Beleg: make lint – selbst ausgeführt"
+    assert block[7].startswith("Tests: erfüllt – Beleg: make test, make check-skills, make check-starter")
+    assert block[7].endswith("– selbst ausgeführt")
+
+
+@pruefung("Prüfnachweis", "Pipeline-Lauf zu einem Pull Request: Link zu Lauf und Pull Request, Beleg „Pipeline“")
+def test_nachweis_pipeline():
+    env = {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_REPOSITORY": "alexandru-tatar/awp-hka-gold-python",
+        "GITHUB_RUN_ID": "42",
+        "GITHUB_REF": "refs/pull/12/merge",
+        "GITHUB_EVENT_NAME": "pull_request",
+    }
+    block = nachweis(env)
+    lauf = "https://github.com/alexandru-tatar/awp-hka-gold-python/actions/runs/42"
+    pr = "https://github.com/alexandru-tatar/awp-hka-gold-python/pull/12"
+    assert block[3] == f"Stand: alexandru-tatar/awp-hka-gold-python, Commit 1a2b3c4, Pull Request {pr}, Lauf {lauf}"
+    assert block[6] == f"Lint: erfüllt – Beleg: make lint, Lauf {lauf} – Pipeline"
+    assert block[7].endswith(f", Lauf {lauf} – Pipeline")
+    push = nachweis(
+        {**env, "GITHUB_REF": "refs/heads/develop", "GITHUB_EVENT_NAME": "push", "GITHUB_REF_NAME": "develop"}
+    )
+    assert "Pull Request kein PR, weil Lauf nach push auf develop, Lauf " in push[3]
+
+
+@pruefung("Prüfnachweis", "Rotes make lint oder make test: „nicht erfüllt“, Nachweis wird trotzdem geschrieben")
+@pytest.mark.parametrize("rot", ["lint", "test"])
+def test_nachweis_bei_rotem_lauf(rot, tmp_path, capsys):
+    stand = pruefnachweis.git_info()["stand"]
+    for bericht in pruefnachweis.beispiel()["berichte"]:
+        (tmp_path / f"pruefbericht-{bericht['art']}-aktuell.json").write_text(json.dumps({**bericht, "stand": stand}))
+    laeufe = {
+        "make lint": {"ok": rot != "lint", "ausgabe": ["x"]},
+        "make test": {"ok": rot != "test", "ausgabe": ["x"]},
+    }
+    status = pruefnachweis.gesamt(tmp_path, lambda befehl: laeufe[befehl])
+    capsys.readouterr()
+    datei = tmp_path / "pruefnachweis-aktuell.md"
+    assert status == 1 and datei.exists()
+    block = vorlage_b_block(datei.read_text(encoding="utf-8"))
+    zeile = next(z for z in block if z.startswith("Lint:" if rot == "lint" else "Tests:"))
+    andere = next(z for z in block if z.startswith("Tests:" if rot == "lint" else "Lint:"))
+    assert zeile.startswith(("Lint: nicht erfüllt", "Tests: nicht erfüllt")) and "erfüllt –" in andere
+    assert not andere.split(": ")[1].startswith("nicht")
+
+
+@pruefung("Prüfnachweis", "docs/pruefnachweis-beispiel.md ist der aktuelle Stand der Ausgabe")
+def test_nachweis_beispiel_aktuell():
+    erwartet = pruefnachweis.render(pruefnachweis.beispiel())[0]
+    assert BEISPIEL_DATEI.read_text(encoding="utf-8") == erwartet, (
+        "neu erzeugen: python tools/tests/pruefnachweis.py --beispiel"
+    )
+
+
 # ── Gleichlauf mit dem JavaScript-Golden-Master (HKA-44, Kriterium 9) ────────
 
 js = pytest.mark.skipif(not JS_ROOT.is_dir(), reason="awp-hka-gold-js liegt nicht neben diesem Repository")
@@ -475,3 +574,14 @@ def test_gleiche_pruefbereiche():
         ours = areas((ROOT / "tools" / "tests" / py).read_text(encoding="utf-8"), r'@pruefung\(\s*"([^"]+)"')
         theirs = areas(js_text(f"tools/tests/{js_file}"), r'^pruefung\(\s*"([^"]+)"')
         assert ours == theirs, py
+
+
+@pruefung(
+    "Gleichlauf mit JavaScript", "Gleiches Beispiel für den Prüfnachweis (nur Sprache, Repo und Commit weichen ab)"
+)
+@js
+def test_gleiches_nachweis_beispiel():
+    def normal(text: str) -> str:
+        return re.sub(r"awp-hka-gold-(js|python)", "awp-hka-gold-<x>", re.sub(r"JavaScript|Python", "<Sprache>", text))
+
+    assert normal(BEISPIEL_DATEI.read_text(encoding="utf-8")) == normal(js_text("docs/pruefnachweis-beispiel.md"))

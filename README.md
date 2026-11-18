@@ -87,13 +87,13 @@ Getrennt von den Tests der App in `tests/`. Sie laufen nicht mit `make test`.
 
 Jeder Befehl gibt einen deutschen Prüfbericht aus (Prüfbereiche, jede Prüfung mit Ergebnis und betroffenen Einzelregeln, alle 40 Einzelregeln mit Stand, Gesamtergebnis) und speichert ihn im Aufbau der Confluence-Vorlage [„Vorlage: User Story, Akzeptanzkriterien und Prüfnachweis“](https://hka-awp.atlassian.net/wiki/spaces/HKA/pages/19922945):
 
-1. **Prüfnachweis (Vorlage B)**: Block für den Jira-Kommentar, wenn das Ticket auf „In Review“ geht. Datum, Commit, Prüfweg, Nachweis und „Auf eigenem Rechner ausgeführt“ sind ausgefüllt; was nur der Reviewer weiß, bleibt [OFFEN].
+1. **Prüfnachweis (Vorlage B, Entwurf 0.2)**: Block für den Jira-Kommentar des Reviewers. Stand (Repository, Commit, Pull Request, Link zum Lauf) sowie `Lint` und `Tests` mit Urteil, Beleg und Art des Belegs sind ausgefüllt; Urteil, Akzeptanzkriterien, Muss, Sollte und Nicht geprüft bleiben [OFFEN]. Beispiel: [`docs/pruefnachweis-beispiel.md`](docs/pruefnachweis-beispiel.md).
 2. **Checkliste Code-Review**: `[x]`, wenn der Lauf den Punkt vollständig belegt (Tests, Lint, Secrets, Login, Ticket-ID in den Commits), sonst `[ ]` mit Hinweis.
 3. Ergebnis der Läufe, danach die Prüfberichte im Detail.
 
 Dateien in `build/pruefberichte/`:
 
-- `pruefnachweis-aktuell.md` (letzter `make check`, an das Ticket hängen), `pruefnachweis-<Datum_Uhrzeit>.md` (jeder Lauf)
+- `pruefnachweis-aktuell.md` (letzter `make check`; den Block daraus kopiert der Reviewer ins Ticket), `pruefnachweis-<Datum_Uhrzeit>.md` (jeder Lauf)
 - `pruefbericht-<skills|starter>-aktuell.md` und `-<Datum_Uhrzeit>.md` (einzelne Selbsttests), `-aktuell.json` (Zusammenfassung für `make check`)
 - `<skills|starter>.xml` (JUnit, für die Pipeline)
 
