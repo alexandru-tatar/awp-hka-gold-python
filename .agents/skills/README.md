@@ -60,7 +60,7 @@ Die Skills werden mit der Testaufgabe „Baue eine Noten-Übersicht“ geprüft 
 
 Ein Lauf ohne Abweichungen wird als **Goldener Standard** gespeichert. Jede neue Version der Skills wird mit ihm verglichen. Die Version der Skills steht im Prüfprotokoll (Git-Tag `skills-vMAJOR.MINOR.PATCH`).
 
-**Stand:** Es hat noch kein Testlauf stattgefunden. Die Skills bleiben Entwurf, bis die Testaufgabe durchgelaufen ist und die Abweichungen eingearbeitet sind.
+**Stand der Testläufe (23.11.2026):** Die Testaufgabe ist mit beiden Golden Mastern gelaufen, je drei Läufe. Python lief am 04.11.2026 mit `skills-v0.2.0`. JavaScript lief am 22.11.2026 mit dem Stand von `main`. Das Szenario S3 (eingecheckter Schlüssel) lief am 22.11.2026 für beide. Die Prüfprotokolle stehen in Confluence unter „KI-Regeltreue: Prüfprotokolle“. Keine Einzelregel ist verletzt. Offen ist die Bestätigung der H- und M-Regeln durch eine Prüfperson (HKA-88). Für JavaScript sind außerdem R-SCHN-3 und R-UI-5 noch offen (HKA-86). Bis dahin bleiben die Skills Entwurf.
 
 ## Konventionen in den Beispielen
 
