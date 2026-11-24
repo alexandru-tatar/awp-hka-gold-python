@@ -12,6 +12,10 @@ Golden Master für Portal-Apps: Python (FastAPI). Diese Seite zeigt, was wo lieg
 |---|---|
 | [`README.md`](../README.md) | Befehle, Aufbau, Wartung, Selbsttests des Starters |
 | [`.agents/skills/README.md`](../.agents/skills/README.md) | Regeln für die KI |
+| [`AGENTS.md`](../AGENTS.md) | Einstieg für KI-Assistenten: nennt die Skills und die Grundregeln (verwaltet) |
+| `AGENTS.local.md` | Eigene Hinweise des App-Teams für die KI (optional, im Golden Master nicht vorhanden) |
+| [`CLAUDE.md`](../CLAUDE.md) | Verweisdatei für Claude Code auf `AGENTS.md` (verwaltet) |
+| [`ki-werkzeuge.md`](ki-werkzeuge.md) | Welches KI-Werkzeug welche Datei liest, und wie man ein weiteres ergänzt |
 | [`pipeline.md`](pipeline.md) | Prüfung bei Pull Requests (GitHub Actions): Auslöser, Prüfschritte, Ergebnis, Vorgehen bei Rot |
 | [`betrieb/betriebsanleitung.md`](betrieb/betriebsanleitung.md) | Betriebsanleitung: Start, Stopp, Neustart, Fehlerfall, Aktualisieren, Zurücksetzen, Beenden, Sichern |
 | [`adr/index.md`](adr/index.md) | Index der Architekturentscheidungen, Verweis auf Confluence |

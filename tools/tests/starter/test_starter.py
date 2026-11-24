@@ -49,6 +49,8 @@ MANAGED = [
     "manifest.json",
     "README.md",
     ".agents/skills/README.md",
+    "AGENTS.md",
+    "CLAUDE.md",
     "platform_sdk/VERSION",
     "platform_sdk/SHA256",
     "platform_sdk/__init__.py",
@@ -66,6 +68,27 @@ MANAGED = [
 @pytest.mark.parametrize("path", MANAGED)
 def test_datei_vorhanden(path):
     assert (ROOT / path).is_file()
+
+
+# Verweisdateien für einzelne KI-Werkzeuge (docs/ki-werkzeuge.md): enthalten nur den Verweis auf AGENTS.md
+POINTERS = ["CLAUDE.md"]
+
+
+@pruefung("Aufbau", "AGENTS.md führt zu den Skills und zu make check")
+def test_agents_md_nennt_skills_und_pruefung():
+    text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    needles = (".agents/skills/README.md", ".agents/skills/*/SKILL.md", "AGENTS.local.md", "DATA_DIR", "make check")
+    for needle in needles:
+        assert needle in text, f"AGENTS.md nennt {needle} nicht"
+
+
+@pruefung("Aufbau", "Verweisdateien für KI-Werkzeuge enthalten nur den Verweis auf AGENTS.md")
+@pytest.mark.parametrize("path", POINTERS)
+def test_verweisdatei_ohne_eigene_regeln(path):
+    text = re.sub(r"<!--.*?-->", "", (ROOT / path).read_text(encoding="utf-8"), flags=re.S)
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    nur_verweis = len(lines) == 1 and "AGENTS.md" in lines[0] and len(lines[0]) <= 200
+    assert nur_verweis, f"{path}: mehr als der Verweis auf AGENTS.md"
 
 
 @pruefung("Aufbau", "Befehle dev, start, test, lint, docker, lock, sdk-update")
@@ -458,11 +481,14 @@ def test_gleiche_make_befehle():
 def test_gleiche_pflichtdateien_manifest_sdk():
     common = [
         "Makefile", "Dockerfile", ".dockerignore", ".gitignore", "manifest.json", "README.md",
-        ".agents/skills/README.md", "platform_sdk/VERSION", "platform_sdk/SHA256",
+        ".agents/skills/README.md", "AGENTS.md", "CLAUDE.md", "platform_sdk/VERSION", "platform_sdk/SHA256",
         "tools/tests/skills", "tools/tests/starter",
     ]  # fmt: skip
     for path in common:
         assert (ROOT / path).exists() and (JS_ROOT / path).exists(), f"{path} fehlt in einem der Repositories"
+    for path in ("AGENTS.md", *POINTERS):  # eine Quelle für die Regeln: in beiden Golden Mastern gleich
+        gleich = (ROOT / path).read_text(encoding="utf-8") == js_text(path)
+        assert gleich, f"{path} unterscheidet sich zwischen den Golden Mastern"
     assert json.loads((ROOT / "manifest.json").read_text(encoding="utf-8")) == json.loads(js_text("manifest.json"))
     assert (ROOT / "platform_sdk" / "VERSION").read_text(encoding="utf-8") == js_text("platform_sdk/VERSION")
 
