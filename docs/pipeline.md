@@ -26,7 +26,7 @@ Beide Schritte laufen immer zu Ende, auch wenn einer rot ist. So entsteht der Pr
 ## Wo das Ergebnis steht
 
 - **Seite des Laufs:** Prüfnachweis und Checkliste Code-Review in der Zusammenfassung.
-- **Artefakt `pruefberichte`** (30 Tage): `build/pruefberichte/` mit `pruefnachweis-aktuell.md` und den Prüfberichten. Den Prüfnachweis (Vorlage B) kopieren Sie als Kommentar ins Jira-Ticket, wenn es auf „In Review“ geht. Link zum Lauf und zum Pull Request stehen schon darin.
+- **Artefakt `pruefberichte`** (30 Tage): `build/pruefberichte/` mit `pruefnachweis-aktuell.md` und den Prüfberichten. Den Prüfnachweis (Vorlage B) legt der Reviewer als Kommentar im Jira-Ticket an. Pull Request und Commit stehen schon darin.
 
 ## Branchschutz
 
