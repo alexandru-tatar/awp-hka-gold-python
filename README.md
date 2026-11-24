@@ -87,7 +87,7 @@ Getrennt von den Tests der App in `tests/`. Sie laufen nicht mit `make test`.
 
 Jeder Befehl gibt einen deutschen Prüfbericht aus (Prüfbereiche, jede Prüfung mit Ergebnis und betroffenen Einzelregeln, alle 40 Einzelregeln mit Stand, Gesamtergebnis) und speichert ihn im Aufbau der Confluence-Vorlage [„Vorlage: User Story, Akzeptanzkriterien und Prüfnachweis“](https://hka-awp.atlassian.net/wiki/spaces/HKA/pages/19922945):
 
-1. **Prüfnachweis (Vorlage B)**: Block für den Jira-Kommentar, wenn das Ticket auf „In Review“ geht. Datum, Commit, Prüfweg, Nachweis und „Auf eigenem Rechner ausgeführt“ sind ausgefüllt; was nur der Reviewer weiß, bleibt [OFFEN].
+1. **Prüfnachweis (Vorlage B)**: Block im Format der Vorlage. Pull Request (nur in der Pipeline) und Commit sind eingetragen. Den Prüfnachweis legt der Reviewer als Kommentar im Jira-Ticket an und füllt die übrigen Zeilen aus.
 2. **Checkliste Code-Review**: `[x]`, wenn der Lauf den Punkt vollständig belegt (Tests, Lint, Secrets, Login, Ticket-ID in den Commits), sonst `[ ]` mit Hinweis.
 3. Ergebnis der Läufe, danach die Prüfberichte im Detail.
 

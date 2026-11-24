@@ -1,8 +1,10 @@
 """Prüfnachweis nach der Confluence-Vorlage „Vorlage: User Story, Akzeptanzkriterien und Prüfnachweis“
 (Vorlage B: Prüfnachweis, Checkliste Code-Review).
 
-Der automatische Lauf füllt aus, was er belegen kann (Datum, Commit, Prüfweg, Nachweis, Tests, Lint,
-Regeln, Commit-Nachrichten). Alles andere bleibt [OFFEN] oder [ ] und prüft der Reviewer.
+Der Block „Prüfnachweis“ hat genau die Zeilen von Vorlage B; der Lauf trägt Pull Request und Commit ein.
+Den Block legt der Reviewer als Kommentar im Ticket an und füllt die übrigen Zeilen aus.
+In der Checkliste belegt der Lauf, was er prüfen kann (Tests, Lint, Regeln, Commit-Nachrichten);
+alles andere bleibt [ ] und prüft der Reviewer.
 
 Aufruf:
   make check-skills / make check-starter  →  report.py schreibt den Bericht eines Selbsttests
@@ -26,7 +28,6 @@ ROOT = Path(__file__).resolve().parents[2]
 SPRACHE = "Python"
 REPORT_DIR = ROOT / "build" / "pruefberichte"
 VORLAGE = "https://hka-awp.atlassian.net/wiki/spaces/HKA/pages/19922945"
-OFFEN = "[OFFEN]"
 TICKET_RE = re.compile(r"^HKA-\d+\b")
 LAEUFE = [
     ("skills", "make check-skills", "Selbsttest Skills"),
@@ -70,10 +71,6 @@ CHECKLISTE: list[tuple[str, list[tuple[str, object]]]] = [
         ],
     ),
 ]
-
-
-def datum(d: dt.datetime) -> str:
-    return f"{d:%d.%m.%Y}"
 
 
 def stempel(d: dt.datetime) -> str:
@@ -203,21 +200,20 @@ def bewerte(beleg, ctx: dict) -> tuple[bool, str]:
 
 
 def vorlage_b(ctx: dict) -> list[str]:
-    """Block „Vorlage B: Prüfnachweis“: gleiche Zeilen wie in Confluence, belegbare Felder ausgefüllt."""
-    befehle = ctx["befehle"]
-    pruefweg = befehle[0] + (f": {', '.join(befehle[1:])}" if len(befehle) > 1 else "")
-    nachweis = " · ".join(x for x in (ctx["ci"]["lauf"], f"Prüfbericht {ctx['datei']}") if x)
+    """Block „Vorlage B: Prüfnachweis“ (Version 0.3): genau die Zeilen aus Confluence.
+
+    Der Lauf trägt nur Pull Request (aus der Pipeline, lokal leer) und Commit ein.
+    """
+    pull_request = ctx["ci"]["pull_request"]
+    stand = f"(Commit {ctx['git']['commit'] or 'unbekannt'})"
     return [
-        "Prüfnachweis (vom Reviewer ausfüllen, alle [OFFEN] ersetzen)",
-        f"Geprüft von: {OFFEN}",
-        f"Datum: {datum(ctx['zeit'])}",
-        f"Version/Commit: {ctx['git']['stand']}",
-        f"Pull Request: {ctx['ci']['pull_request'] or OFFEN}",
-        f"Prüfweg: automatisch ({pruefweg})",
-        f"Ergebnis je Akzeptanzkriterium: {OFFEN} (AK1 erfüllt / nicht erfüllt / nicht prüfbar, AK2 …)",
-        f"Nachweis (Link Pipeline / Protokoll / Screenshot): {nachweis} · Gesamtergebnis {ctx['ergebnis']}",
-        f"Auf eigenem Rechner ausgeführt: {'nein (Pipeline)' if ctx['ci']['ci'] else 'ja'}",
-        f"Code-Review-Checkliste durchgegangen: {OFFEN} (ja / nein)",
+        "Prüfnachweis",
+        "Ergebnis: abgenommen / zurück an Umsetzung",
+        "Geprüft von, am:",
+        f"Pull Request: {pull_request} {stand}" if pull_request else f"Pull Request: {stand}",
+        "AK1: ok / nicht ok / nur gelesen – geprüft mit: <Test, Befehl oder Link>",
+        "AK2: ok / nicht ok / nur gelesen – geprüft mit: <Test, Befehl oder Link>",
+        "Befunde: <[Muss] oder [Sollte] mit Datei oder Stelle, sonst „keine“>",
     ]
 
 
@@ -251,8 +247,8 @@ def render(ctx: dict) -> tuple[str, list[str], bool]:
 
     md += ["## 1. Prüfnachweis (Vorlage B)", ""]
     md += [
-        "Sobald das Ticket auf **In Review** geht: diesen Block als Kommentar ins Jira-Ticket kopieren und den "
-        "Reviewer zuweisen. Der Reviewer **bearbeitet diesen Kommentar** und ersetzt alle [OFFEN].",
+        "Den Prüfnachweis legt der Reviewer als Kommentar im Jira-Ticket an: Block kopieren, "
+        "je Akzeptanzkriterium eine Zeile schreiben und die übrigen Zeilen ausfüllen.",
         "",
     ]
     md += ["```text", *block, "```", ""]
