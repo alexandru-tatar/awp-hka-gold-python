@@ -5,7 +5,7 @@ description: Verwenden, wenn die Pipeline rot ist oder ein Mensch eine Fehlermel
 
 # Pipeline-Fehler erklären
 
-Die Pipeline prüft jede Änderung, bevor sie ins Portal geht. Ist sie rot, fehlt etwas, das Sie beheben können. Die Meldungen tragen eine Kennung (`PF-nnn`) und einen deutschen Erklärblock. Die Menschen, die Sie fragen, sind Fachleute und keine Entwickler. Erklären Sie ruhig und ohne Schuldzuweisung.
+Die Pipeline prüft jede Änderung, bevor sie ins Portal geht. Ist sie rot, fehlt etwas, das Sie beheben können. Die Meldungen tragen eine Kennung (`PF-nnn`) und einen Erklärblock auf Deutsch oder Englisch. Die Menschen, die Sie fragen, sind Fachleute und keine Entwickler. Erklären Sie ruhig und ohne Schuldzuweisung.
 
 ## Regeln
 
