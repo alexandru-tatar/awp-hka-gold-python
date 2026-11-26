@@ -8,7 +8,7 @@ Für die Entwicklung empfehlen wir den vorbereiteten DevContainer. Python, uv un
 
 ## Projekt konfigurieren
 
-Zuerst in `manifest.json` Name, Kurzname (`slug`), Kategorie, Menü und Rollen eintragen.
+Zuerst in `manifest.json` Name und Menütext auf Deutsch und Englisch (`name`, `name_en`, `menu.label`, `menu.label_en`), Kurzname (`slug`), Kategorie, Menü-Symbol und Rollen eintragen.
 
 ## Befehle
 
@@ -31,7 +31,7 @@ Erst nach Merge auf `main`. Auf dem eigenen Rechner (nicht im DevContainer), mit
 make deploy VM=iwi-hean-05.hs-karlsruhe.de
 ```
 
-Das Skript `tools/deploy.sh` baut das Image (`linux/amd64`), kopiert es mit `manifest.json` per `scp` auf die VM, startet dort den Container `app-<slug>` und registriert die App mit `portal-deploy`. Nach etwa 10 s steht sie im Menü unter `https://<host>/apps/<slug>/`. Bei einem Fehler bricht es ab und nennt den Schritt.
+Das Skript `tools/deploy.sh` baut das Image (`linux/amd64`), kopiert es mit `manifest.json` per `scp` auf die VM, startet dort den Container `app-<slug>` und registriert die App mit `portal-deploy`. Nach etwa 10 s steht sie im Menü unter `https://<host>/apps/<slug>/`. Bei einem Fehler bricht es ab und nennt den Schritt. Die Meldungen kommen auf Deutsch oder Englisch: `PORTAL_LANG=en make deploy …` (sonst nach `LANG`, Standard Deutsch).
 
 - Voraussetzung: Zugang als `sadmin` (ssh, sudo). `slug` in `manifest.json` ist nicht mehr `meine-app`.
 - Fertiges Image statt lokal bauen: `make deploy VM=… IMAGE=ghcr.io/<owner>/<repo>@sha256:…`

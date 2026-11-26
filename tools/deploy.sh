@@ -38,15 +38,33 @@
 #   PORTAL_ISSUER Aussteller der Tokens, mit Schrägstrich am Ende      (Standard: vm https://$VM/, lokal http://localhost:18080/)
 #   PORTAL_STACK  Compose-Projekt des lokalen Stacks                   (Standard: hka-local, nur ZIEL=lokal)
 #   OWNER_REPO    Besitzer der App (owner/repo)                        (Standard: aus git remote origin)
+#   PORTAL_LANG   Sprache der Meldungen: de oder en                    (Standard: nach LC_ALL, LC_MESSAGES, LANG, sonst de; HKA-101)
+#                 Lokal gilt sie auch für die Prüfung des Manifests. Auf der VM sagt /etc/portal/deploy.env, was portal-deploy spricht.
 #
 # Das Skript liest und schreibt keine Zugangsdaten.
 
 set -euo pipefail
 
-LETZTER="Vorbereitung"
+# Sprache der Meldungen (HKA-101): PORTAL_LANG=de|en, sonst die erste gesetzte Variable aus LC_ALL, LC_MESSAGES, LANG
+# ("en…" = Englisch), sonst Deutsch. t "deutscher Text" "English text" gibt den Text der Sprache aus.
+sprache() {
+  local wert=${PORTAL_LANG:-}
+  case "$wert" in en|EN) echo en; return ;; de|DE) echo de; return ;; esac
+  for wert in "${LC_ALL:-}" "${LC_MESSAGES:-}" "${LANG:-}"; do
+    if [ -n "$wert" ]; then
+      case "$wert" in en|en_*|en.*) echo en ;; *) echo de ;; esac
+      return
+    fi
+  done
+  echo de
+}
+SPRACHE=$(sprache)
+t() { if [ "$SPRACHE" = en ]; then printf '%s' "$2"; else printf '%s' "$1"; fi; }
+
+LETZTER=$(t "Vorbereitung" "Preparation")
 schritt() { LETZTER="$*"; echo "==> $*"; }
-fehler() { echo "FEHLER: $*" >&2; exit 1; }
-abbruch() { local rc=$?; if [ "$rc" -ne 0 ]; then echo "Abbruch im Schritt: $LETZTER" >&2; fi; }
+fehler() { echo "$(t FEHLER ERROR): $*" >&2; exit 1; }
+abbruch() { local rc=$?; if [ "$rc" -ne 0 ]; then echo "$(t "Abbruch im Schritt" "Stopped in step"): $LETZTER" >&2; fi; }
 trap abbruch EXIT
 
 ZIEL="${ZIEL:-vm}"
@@ -56,7 +74,7 @@ PORTAL_API="${PORTAL_API:-http://gateway:8080}"
 PORTAL_ADAPTERS="${PORTAL_ADAPTERS:-http://adapter:8080}"
 case "$ZIEL" in
   vm)
-    : "${VM:?VM fehlt. Aufruf: make deploy VM=iwi-hean-05.hs-karlsruhe.de}"
+    : "${VM:?$(t "VM fehlt. Aufruf: make deploy VM=iwi-hean-05.hs-karlsruhe.de" "VM is missing. Call: make deploy VM=iwi-hean-05.hs-karlsruhe.de")}"
     VM_USER="${VM_USER:-sadmin}"
     PORTAL_ISSUER="${PORTAL_ISSUER:-https://$VM/}"
     SUDO="sudo "
@@ -68,58 +86,58 @@ case "$ZIEL" in
     SUDO=""
     PLATTFORM=()                         # eigene Plattform, keine Emulation
     ;;
-  *) fehler "ZIEL muss vm oder lokal sein, nicht: $ZIEL" ;;
+  *) fehler "$(t "ZIEL muss vm oder lokal sein, nicht: $ZIEL" "ZIEL must be vm or lokal, not: $ZIEL")" ;;
 esac
 
 cd "$(dirname "$0")/.."
 
 # ── Angaben aus Repository und Manifest ──────────────────────────────────────
 
-schritt "Angaben lesen"
+schritt "$(t "Angaben lesen" "Read details")"
 SLUG=$(sed -nE 's/^[[:space:]]*"slug"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' manifest.json | head -n 1)
-[[ "$SLUG" =~ ^[a-z][a-z0-9-]{2,30}$ ]] || fehler "kein gültiger slug in manifest.json"
-[ "$SLUG" != "meine-app" ] || fehler "slug ist noch meine-app. Erst in manifest.json einen eigenen Kurznamen eintragen."
+[[ "$SLUG" =~ ^[a-z][a-z0-9-]{2,30}$ ]] || fehler "$(t "kein gültiger slug in manifest.json" "no valid slug in manifest.json")"
+[ "$SLUG" != "meine-app" ] || fehler "$(t "slug ist noch meine-app. Erst in manifest.json einen eigenen Kurznamen eintragen." "slug is still meine-app. First enter your own short name in manifest.json.")"
 
 if [ -z "${OWNER_REPO:-}" ]; then
-  URL=$(git remote get-url origin 2>/dev/null) || fehler "kein git remote origin. OWNER_REPO=owner/repo angeben."
+  URL=$(git remote get-url origin 2>/dev/null) || fehler "$(t "kein git remote origin. OWNER_REPO=owner/repo angeben." "no git remote origin. Set OWNER_REPO=owner/repo.")"
   OWNER_REPO=$(sed -E 's#^(https://[^/]+/|git@[^:]+:)##; s#\.git$##' <<<"$URL")
 fi
-[[ "$OWNER_REPO" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9._-]+$ ]] || fehler "ungültiger Besitzer: $OWNER_REPO"
+[[ "$OWNER_REPO" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9._-]+$ ]] || fehler "$(t "ungültiger Besitzer: $OWNER_REPO" "invalid owner: $OWNER_REPO")"
 
 # Werte landen in der erzeugten Compose-Datei und im Befehl auf der VM: nur einfache Zeichen.
 EINFACH='^[A-Za-z0-9._:/@-]+$'
 for wert in "$PORTAL_NETZ" "$PORTAL_API" "$PORTAL_ADAPTERS" "$PORTAL_ISSUER"; do
-  [[ "$wert" =~ $EINFACH ]] || fehler "ungültiger Wert: $wert"
+  [[ "$wert" =~ $EINFACH ]] || fehler "$(t "ungültiger Wert: $wert" "invalid value: $wert")"
 done
 
 NAME="app-$SLUG"
-MODUS="ein Container"
+MODUS=$(t "ein Container" "one container")
 [ -f compose.yml ] && MODUS="compose.yml"
 if [ "$ZIEL" = vm ]; then
   ZIEL_HOST="$VM_USER@$VM"
-  echo "    App $SLUG, Besitzer $OWNER_REPO, Ziel $ZIEL_HOST, Modus: $MODUS"
+  echo "    $(t "App $SLUG, Besitzer $OWNER_REPO, Ziel $ZIEL_HOST, Modus: $MODUS" "App $SLUG, owner $OWNER_REPO, target $ZIEL_HOST, mode: $MODUS")"
 else
-  echo "    App $SLUG, Besitzer $OWNER_REPO, Ziel lokaler Stack $PORTAL_STACK, Modus: $MODUS"
+  echo "    $(t "App $SLUG, Besitzer $OWNER_REPO, Ziel lokaler Stack $PORTAL_STACK, Modus: $MODUS" "App $SLUG, owner $OWNER_REPO, target local stack $PORTAL_STACK, mode: $MODUS")"
 fi
 
 # ── Lokal: laufendes Portal finden ───────────────────────────────────────────
 # Image, Konfiguration und Ordner kommen aus dem Portal-Container: kein Pfad in ein anderes Repository.
 
 if [ "$ZIEL" = lokal ]; then
-  schritt "Lokalen Stack finden ($PORTAL_STACK)"
+  schritt "$(t "Lokalen Stack finden ($PORTAL_STACK)" "Find local stack ($PORTAL_STACK)")"
   BACKEND=$(docker ps -q --filter "label=com.docker.compose.project=$PORTAL_STACK" \
                          --filter "label=com.docker.compose.service=backend")
-  [ -n "$BACKEND" ] || fehler "Portal läuft nicht. Im Gateway-Repository: make server-up"
-  [ "$(wc -l <<<"$BACKEND")" -eq 1 ] || fehler "mehr als ein Portal-Container im Projekt $PORTAL_STACK"
-  docker network inspect "$PORTAL_NETZ" >/dev/null 2>&1 || fehler "Docker-Netz $PORTAL_NETZ fehlt. Im Gateway-Repository: make server-up"
+  [ -n "$BACKEND" ] || fehler "$(t "Portal läuft nicht. Im Gateway-Repository: make server-up" "The portal is not running. In the gateway repository: make server-up")"
+  [ "$(wc -l <<<"$BACKEND")" -eq 1 ] || fehler "$(t "mehr als ein Portal-Container im Projekt $PORTAL_STACK" "more than one portal container in project $PORTAL_STACK")"
+  docker network inspect "$PORTAL_NETZ" >/dev/null 2>&1 || fehler "$(t "Docker-Netz $PORTAL_NETZ fehlt. Im Gateway-Repository: make server-up" "Docker network $PORTAL_NETZ is missing. In the gateway repository: make server-up")"
   quelle() { docker inspect -f "{{range .Mounts}}{{if eq .Destination \"$1\"}}{{.Source}}{{end}}{{end}}" "$BACKEND"; }
   PORTAL_IMAGE=$(docker inspect -f '{{.Config.Image}}' "$BACKEND")
   PORTAL_CONFIG_IN_IMAGE=$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$BACKEND" | sed -n 's/^PORTAL_CONFIG=//p')
   MANIFESTS_DIR=$(quelle /var/lib/portal/manifests)
   REGISTRY_DIR=$(quelle /var/lib/portal/registry)
   [ -n "$MANIFESTS_DIR" ] && [ -n "$REGISTRY_DIR" ] && [ -n "$PORTAL_CONFIG_IN_IMAGE" ] \
-    || fehler "Portal-Container ohne Ordner für Manifeste/Registry oder ohne PORTAL_CONFIG"
-  echo "    Portal $PORTAL_IMAGE, Konfiguration $PORTAL_CONFIG_IN_IMAGE"
+    || fehler "$(t "Portal-Container ohne Ordner für Manifeste/Registry oder ohne PORTAL_CONFIG" "portal container without manifest/registry folders or without PORTAL_CONFIG")"
+  echo "    $(t "Portal $PORTAL_IMAGE, Konfiguration $PORTAL_CONFIG_IN_IMAGE" "Portal $PORTAL_IMAGE, configuration $PORTAL_CONFIG_IN_IMAGE")"
 fi
 
 # ── Image bereitstellen ──────────────────────────────────────────────────────
@@ -127,14 +145,14 @@ fi
 
 if [ -z "$IMAGE" ]; then
   IMAGE="hka/$NAME:$(git rev-parse --short HEAD)"
-  schritt "Image lokal bauen: $IMAGE${PLATTFORM[*]+ (${PLATTFORM[*]})}"
+  schritt "$(t "Image lokal bauen" "Build image locally"): $IMAGE${PLATTFORM[*]+ (${PLATTFORM[*]})}"
   docker buildx version >/dev/null 2>&1 \
-    || fehler "docker buildx fehlt (BuildKit, das Dockerfile braucht es). Ubuntu/Debian: sudo apt install docker-buildx; Docker Desktop hat es schon."
-  [ -z "$(git status --porcelain)" ] || echo "WARNUNG: nicht committete Änderungen, sie kommen mit ins Image." >&2
+    || fehler "$(t "docker buildx fehlt (BuildKit, das Dockerfile braucht es). Ubuntu/Debian: sudo apt install docker-buildx; Docker Desktop hat es schon." "docker buildx is missing (BuildKit, the Dockerfile needs it). Ubuntu/Debian: sudo apt install docker-buildx; Docker Desktop has it.")"
+  [ -z "$(git status --porcelain)" ] || echo "$(t "WARNUNG: nicht committete Änderungen, sie kommen mit ins Image." "WARNING: uncommitted changes, they go into the image.")" >&2
   docker build ${PLATTFORM[@]+"${PLATTFORM[@]}"} --tag "$IMAGE" .
 else
-  [[ "$IMAGE" =~ $EINFACH ]] || fehler "ungültiger Image-Name: $IMAGE"
-  schritt "Image ziehen: $IMAGE${PLATTFORM[*]+ (${PLATTFORM[*]})}"
+  [[ "$IMAGE" =~ $EINFACH ]] || fehler "$(t "ungültiger Image-Name: $IMAGE" "invalid image name: $IMAGE")"
+  schritt "$(t "Image ziehen" "Pull image"): $IMAGE${PLATTFORM[*]+ (${PLATTFORM[*]})}"
   docker pull ${PLATTFORM[@]+"${PLATTFORM[@]}"} "$IMAGE"
 fi
 
@@ -145,7 +163,7 @@ BILDER=("$IMAGE")
 
 ERGAENZUNG="build/deploy/compose.deploy.yml"
 if [ "$MODUS" = compose.yml ]; then
-  schritt "compose.yml ergänzen und prüfen"
+  schritt "$(t "compose.yml ergänzen und prüfen" "Extend and check compose.yml")"
   cat >"$ERGAENZUNG" <<EOF
 # Erzeugt von tools/deploy.sh: Einstellungen für den Service "app" ($ZIEL). Nicht von Hand bearbeiten.
 name: $NAME
@@ -178,40 +196,52 @@ volumes:
   app-data:
     name: $NAME-data
 EOF
-  KONFIG=$(docker compose -f compose.yml -f "$ERGAENZUNG" config --format json) || fehler "compose.yml ist ungültig"
+  KONFIG=$(docker compose -f compose.yml -f "$ERGAENZUNG" config --format json) || fehler "$(t "compose.yml ist ungültig" "compose.yml is invalid")"
 
   PRUEFUNG=$(cat <<'PY'
-import json, sys
+import json, os, sys
+EN = os.environ.get("DEPLOY_LANG") == "en"
+
+
+def m(de, en):
+    return en if EN else de
+
+
 cfg = json.load(sys.stdin)
 services = cfg.get("services", {})
 fehler = []
 if "app" not in services:
-    fehler.append('Service "app" fehlt')
+    fehler.append(m('Service "app" fehlt', 'Service "app" is missing'))
 verboten = ["ports", "privileged", "network_mode", "pid", "ipc", "cap_add", "devices", "userns_mode"]
 for name, s in services.items():
     for key in verboten:
         if s.get(key):
-            fehler.append(f"{name}: {key} ist nicht erlaubt")
+            fehler.append(f"{name}: {key} " + m("ist nicht erlaubt", "is not allowed"))
     for v in s.get("volumes", []):
         if v.get("type") != "volume" and not (v.get("type") == "tmpfs"):
-            fehler.append(f"{name}: nur benannte Volumes, kein {v.get('type')} ({v.get('source', '')})")
+            fehler.append(m(f"{name}: nur benannte Volumes, kein {v.get('type')} ({v.get('source', '')})",
+                            f"{name}: named volumes only, not {v.get('type')} ({v.get('source', '')})"))
     netze = set(s.get("networks", {}) or {"default": None})
     for n, c in (s.get("networks") or {}).items():
         if c and (c.get("aliases") or c.get("ipv4_address") or c.get("ipv6_address")):
-            fehler.append(f"{name}: aliases und feste Adressen im Netz {n} sind nicht erlaubt")
+            fehler.append(m(f"{name}: aliases und feste Adressen im Netz {n} sind nicht erlaubt",
+                            f"{name}: aliases and fixed addresses in network {n} are not allowed"))
     if name == "app":
         if netze - {"default", "portal"}:
-            fehler.append(f"app: nur die Netze default und portal, nicht {sorted(netze - {'default', 'portal'})}")
+            fehler.append(m(f"app: nur die Netze default und portal, nicht {sorted(netze - {'default', 'portal'})}",
+                            f"app: only the networks default and portal, not {sorted(netze - {'default', 'portal'})}"))
         continue
     if s.get("build"):
-        fehler.append(f"{name}: build ist nur für app erlaubt, sonst ein fertiges Image")
+        fehler.append(m(f"{name}: build ist nur für app erlaubt, sonst ein fertiges Image",
+                        f"{name}: build is allowed for app only, otherwise a finished image"))
     if s.get("container_name"):
-        fehler.append(f"{name}: container_name ist nicht erlaubt")
+        fehler.append(f"{name}: container_name " + m("ist nicht erlaubt", "is not allowed"))
     if netze - {"default"}:
-        fehler.append(f"{name}: nur das Netz default, nicht {sorted(netze - {'default'})}")
+        fehler.append(m(f"{name}: nur das Netz default, nicht {sorted(netze - {'default'})}",
+                        f"{name}: only the network default, not {sorted(netze - {'default'})}"))
 for n, net in cfg.get("networks", {}).items():
     if net.get("external") and n != "portal":
-        fehler.append(f"Netz {n}: externe Netze sind nicht erlaubt")
+        fehler.append(m(f"Netz {n}: externe Netze sind nicht erlaubt", f"Network {n}: external networks are not allowed"))
 if fehler:
     print("\n".join(fehler), file=sys.stderr)
     sys.exit(1)
@@ -221,13 +251,13 @@ for name, s in services.items():
 PY
 )
   if command -v python3 >/dev/null 2>&1 && python3 -c "" 2>/dev/null; then
-    WEITERE=$(python3 -c "$PRUEFUNG" <<<"$KONFIG") || fehler "compose.yml erfüllt die Regeln nicht (siehe oben)"
+    WEITERE=$(DEPLOY_LANG="$SPRACHE" python3 -c "$PRUEFUNG" <<<"$KONFIG") || fehler "$(t "compose.yml erfüllt die Regeln nicht (siehe oben)" "compose.yml does not follow the rules (see above)")"
   else
-    WEITERE=$(docker run --rm -i python:3-alpine python -c "$PRUEFUNG" <<<"$KONFIG") || fehler "compose.yml erfüllt die Regeln nicht (siehe oben)"
+    WEITERE=$(docker run --rm -i -e DEPLOY_LANG="$SPRACHE" python:3-alpine python -c "$PRUEFUNG" <<<"$KONFIG") || fehler "$(t "compose.yml erfüllt die Regeln nicht (siehe oben)" "compose.yml does not follow the rules (see above)")"
   fi
   for bild in $WEITERE; do
-    [[ "$bild" =~ $EINFACH ]] || fehler "ungültiger Image-Name in compose.yml: $bild"
-    schritt "Image ziehen: $bild${PLATTFORM[*]+ (${PLATTFORM[*]})}"
+    [[ "$bild" =~ $EINFACH ]] || fehler "$(t "ungültiger Image-Name in compose.yml: $bild" "invalid image name in compose.yml: $bild")"
+    schritt "$(t "Image ziehen" "Pull image"): $bild${PLATTFORM[*]+ (${PLATTFORM[*]})}"
     docker pull ${PLATTFORM[@]+"${PLATTFORM[@]}"} "$bild"
     BILDER+=("$bild")
   done
@@ -257,11 +287,14 @@ EOF
 )
 fi
 
+M_FEHLER=$(t FEHLER ERROR)
+M_UNHEALTHY=$(t "ist nicht healthy" "is not healthy")
+M_LOGZEILEN=$(t "Letzte Zeilen aus dem Log:" "Last log lines:")
 STARTEN_UND_WARTEN=$(cat <<EOF
-echo "==> $NAME neu starten ($MODUS)"
+echo "==> $(t "$NAME neu starten ($MODUS)" "restart $NAME ($MODUS)")"
 ${SUDO}docker rm -f $NAME >/dev/null 2>&1 || true
 $STARTEN
-echo "==> warten auf healthy"
+echo "==> $(t "warten auf healthy" "wait for healthy")"
 for _ in \$(seq 1 30); do
   status=\$(${SUDO}docker inspect -f '{{.State.Health.Status}}' $NAME)
   [ "\$status" = healthy ] && break
@@ -269,7 +302,7 @@ for _ in \$(seq 1 30); do
   sleep 2
 done
 if [ "\$status" != healthy ]; then
-  echo "FEHLER: $NAME ist nicht healthy (\$status). Letzte Zeilen aus dem Log:" >&2
+  echo "$M_FEHLER: $NAME $M_UNHEALTHY (\$status). $M_LOGZEILEN" >&2
   ${SUDO}docker logs --tail 30 $NAME >&2
   exit 1
 fi
@@ -288,6 +321,7 @@ if [ "$ZIEL" = lokal ]; then
       --network none --read-only --tmpfs /tmp \
       --cap-drop ALL --security-opt no-new-privileges \
       --memory 256m --pids-limit 64 \
+      -e "PORTAL_LANG=$SPRACHE" \
       -v "$MANIFESTS_DIR:/var/lib/portal/manifests:$rw" \
       -v "$REGISTRY_DIR:/var/lib/portal/registry:$rw" \
       --entrypoint python \
@@ -295,27 +329,27 @@ if [ "$ZIEL" = lokal ]; then
       -m portal.registry "$1" --config "$PORTAL_CONFIG_IN_IMAGE" --owner "$OWNER_REPO" <manifest.json
   }
 
-  schritt "Lokal starten"
+  schritt "$(t "Lokal starten" "Start locally")"
   bash -c "set -euo pipefail
 $STARTEN_UND_WARTEN"
-  schritt "Manifest prüfen"
+  schritt "$(t "Manifest prüfen" "Check manifest")"
   portal_registry check
-  schritt "Manifest registrieren"
+  schritt "$(t "Manifest registrieren" "Register manifest")"
   portal_registry register
 
-  LETZTER="fertig"
+  LETZTER=$(t "fertig" "done")
   echo ""
-  echo "Fertig. In etwa 10 s im Menü: http://localhost:18080/  (App: http://localhost:18080/apps/$SLUG/)"
+  echo "$(t "Fertig. In etwa 10 s im Menü" "Done. In the menu in about 10 s"): http://localhost:18080/  (App: http://localhost:18080/apps/$SLUG/)"
   exit 0
 fi
 
 # ── VM: übertragen ───────────────────────────────────────────────────────────
 
 PAKET="build/deploy/$NAME.tar.gz"
-schritt "Images packen: $PAKET"
+schritt "$(t "Images packen" "Pack images"): $PAKET"
 docker save "${BILDER[@]}" | gzip >"$PAKET"
 
-schritt "Auf die VM kopieren"
+schritt "$(t "Auf die VM kopieren" "Copy to the VM")"
 # shellcheck disable=SC2029  # $NAME soll auf dem Rechner eingesetzt werden
 ssh "$ZIEL_HOST" "install -d -m 0700 ~/deploy ~/deploy/$NAME ~/manifests"
 scp "$PAKET" "$ZIEL_HOST:~/deploy/$NAME.tar.gz"
@@ -332,7 +366,7 @@ REMOTE=$(cat <<EOF
 set -euo pipefail
 echo "==> docker load"
 gunzip -c ~/deploy/$NAME.tar.gz | sudo docker load
-sudo docker network inspect $PORTAL_NETZ >/dev/null 2>&1 || { echo "FEHLER: Docker-Netz $PORTAL_NETZ fehlt. Läuft das Portal?" >&2; exit 1; }
+sudo docker network inspect $PORTAL_NETZ >/dev/null 2>&1 || { echo "$M_FEHLER: $(t "Docker-Netz $PORTAL_NETZ fehlt. Läuft das Portal?" "Docker network $PORTAL_NETZ is missing. Is the portal running?")" >&2; exit 1; }
 $STARTEN_UND_WARTEN
 echo "==> portal-deploy check"
 sudo portal-deploy check --owner $OWNER_REPO < ~/manifests/$SLUG.json
@@ -342,9 +376,9 @@ rm -f ~/deploy/$NAME.tar.gz
 EOF
 )
 
-schritt "Auf der VM einspielen und registrieren"
+schritt "$(t "Auf der VM einspielen und registrieren" "Load and register on the VM")"
 ssh -t "$ZIEL_HOST" "bash -c $(q "$REMOTE")"
 
-LETZTER="fertig"
+LETZTER=$(t "fertig" "done")
 echo ""
-echo "Fertig. In etwa 10 s im Menü: https://$VM/  (App: https://$VM/apps/$SLUG/)"
+echo "$(t "Fertig. In etwa 10 s im Menü" "Done. In the menu in about 10 s"): https://$VM/  (App: https://$VM/apps/$SLUG/)"

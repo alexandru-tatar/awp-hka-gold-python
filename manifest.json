@@ -1,8 +1,9 @@
 {
   "slug": "meine-app",
   "name": "Meine App",
+  "name_en": "My app",
   "category": "Sonstiges",
-  "menu": { "label": "Meine App", "icon": "info" },
+  "menu": { "label": "Meine App", "label_en": "My app", "icon": "info" },
   "roles": ["student"],
   "version": "0.1.0"
 }

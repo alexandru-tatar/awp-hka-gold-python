@@ -20,6 +20,7 @@ Die Pipeline prüft jede Änderung, bevor sie ins Portal geht. Ist sie rot, fehl
 
 1. Suchen Sie in der Meldung den Fehlercode (`PF-nnn`), die Stufe (zum Beispiel `lint`) und, falls vorhanden, Datei und Zeile.
 2. Schlagen Sie den Code in `fehlercodes.md` (in diesem Ordner) nach. Erklären Sie nach diesem Eintrag, statt die Meldung nachzuerzählen.
+   Die Meldung steht auf Deutsch (`FEHLER`, `Was ist passiert:`) oder auf Englisch (`ERROR`, `What happened:`). Der Katalog hat beide Fassungen. Antworten Sie in der Sprache der Person.
 3. Antworten Sie in dieser Reihenfolge:
    - **Was ist passiert?** Die Ursache in einfachen Worten, mit Code, Stufe und Datei.
    - **Warum ist das wichtig?** Ein Satz.
