@@ -43,8 +43,7 @@ MAKE_PLANNED = {"template-update"}  # Architekturvorschlag 07 §1, noch nicht um
 
 # Dateien, auf die die Skills verweisen, die es im Starter noch nicht gibt (Phase 2)
 PATHS_PLANNED = {
-    "AGENTS.md",
-    "AGENTS.local.md",
+    "AGENTS.local.md",  # optional, legt das App-Team an (docs/ki-werkzeuge.md)
     ".devcontainer/",
     "docs/schnittstellen/noten.md",
     "docs/schnittstellen/mail.md",

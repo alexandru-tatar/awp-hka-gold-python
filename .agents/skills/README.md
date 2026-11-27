@@ -25,7 +25,7 @@ Die Skills sind aus dem JavaScript-Golden-Master (`awp-hka-gold-js/.agents/skill
 └── secrets/SKILL.md             Passwörter, Schlüssel, Token
 ```
 
-Die KI liest immer zuerst die Hauptregeln der App (`AGENTS.md`, kommt mit Phase 2). Einen Skill lädt sie nur, wenn die `description` im Kopf der Datei zur Aufgabe passt. Deshalb beginnt jede Beschreibung mit „Verwenden, wenn …“ und nennt Wörter, die Menschen wirklich sagen.
+Die KI liest immer zuerst die Hauptregeln der App (`AGENTS.md`; `CLAUDE.md` verweist nur darauf). `AGENTS.md` verlangt, vor der ersten Änderung alle Skills zu lesen, weil nicht jedes Werkzeug `.agents/skills/` von selbst lädt. Werkzeuge, die Skills selbst laden, nehmen nur den Skill, dessen `description` im Kopf der Datei zur Aufgabe passt. Deshalb beginnt jede Beschreibung mit „Verwenden, wenn …“ und nennt Wörter, die Menschen wirklich sagen.
 
 ## Zuordnung der Skills zu den Regeln
 
@@ -80,5 +80,5 @@ Ein Lauf ohne Abweichungen wird als **Goldener Standard** gespeichert. Jede neue
 7. **Manifest-Beispiel:** Der Architekturvorschlag (Starter und Runtime, §7) nennt für Noten das Icon `table`. Das Manifest-Schema erlaubt es nicht. Die Skills nutzen `grades`.
 8. **Eigenes CSS einbinden:** Der Architekturvorschlag legt das nicht fest. Das vorläufige SDK bindet `{PORTAL_BASE_PATH}/static/app.css` in `layout()` immer ein. Mit dem JavaScript-Golden-Master und dem Plattform-Team abstimmen.
 9. **Nicht abgedeckte Vorgaben:** Drei Vorgaben stehen nicht unter den 40 Einzelregeln (Regelpapier, Abschnitt „Offene Punkte“): Entscheidungen in der README festhalten, `Dockerfile` und `docker-compose.yml` nicht ohne Absprache ändern, `.editorconfig` und Projektstruktur einhalten. Sie sind bewusst nicht in den Skills, bis das Team entschieden hat.
-10. **Hauptregeln der App (`AGENTS.md`):** Die Datei, die diese Skills nennt und lädt, gehört nicht zu HKA-40.
-11. **Kopien für einzelne KI-Werkzeuge:** Diese Dateien sind die Quelle. Kopien im Format der jeweiligen Werkzeuge erzeugt später die Plattform (Architekturvorschlag, KI-Schicht, §7).
+10. **Hauptregeln der App (`AGENTS.md`):** Erledigt mit HKA-83. `AGENTS.md` (verwaltet) nennt diese Skills und verlangt, sie zu lesen. Eigene Hinweise eines App-Teams stehen in `AGENTS.local.md`. Offen ist nur die Prüfung, ob Assistenten die Regeln wirklich einhalten (HKA-81).
+11. **Verweisdateien für einzelne KI-Werkzeuge:** `CLAUDE.md` gibt es (HKA-83); sie verweist nur auf `AGENTS.md`. Weitere Verweisdateien ergänzt das Team von Hand, die Anleitung steht in `docs/ki-werkzeuge.md`. Offen: Welche KI-Assistenten die HKA freigibt (Datenschutz), und ob die Plattform die Verweisdateien später erzeugt (Architekturvorschlag, KI-Schicht, §7).
