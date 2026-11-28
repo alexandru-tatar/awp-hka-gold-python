@@ -1,6 +1,6 @@
 # Architekturentscheidungen (ADR)
 
-*Stand: Confluence „Architekturentscheidungen (ADR)“, 29.10.2026 · Ticket HKA-22*
+*Stand: Confluence „Architekturentscheidungen (ADR)“, 27.11.2026 · Tickets HKA-22, HKA-65*
 
 **Regel:** Eine einmal getroffene Entscheidung wird nicht geändert, sondern durch eine neue ADR ersetzt.
 
@@ -15,3 +15,4 @@
 | 5 | Standard-Keycloak als lokale Test-Identität | Vorgeschlagen | 15.10.2026 |
 | 6 | Benannte Docker-Netzwerke zur Abschirmung der Apps | Vorgeschlagen | 15.10.2026 |
 | 7 | Fachsysteme nur mit Testdaten und Mocks | Vorgeschlagen | 29.10.2026 |
+| 8 | Eindeutiges Image-Tag mit Bauzeit und Stufe statt latest | Vorgeschlagen | 27.11.2026 |

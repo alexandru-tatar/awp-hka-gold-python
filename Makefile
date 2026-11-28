@@ -4,7 +4,6 @@
 # Selbsttests des Golden Master (Plattform-Team): make check | check-skills | check-starter
 
 export PYTHONPATH := .:src
-IMAGE ?= hka/portal-app:0.1.0
 # Gebaute SDK-Kopie aus dem Portal-Repository (dort: make sdk-release)
 SDK_DIST ?= ../portal/sdk/dist/python/platform_sdk
 
@@ -24,8 +23,8 @@ lint:    ## Regeln prüfen (Ruff, Formatierung, Portal-Bibliothek)
 	uv run ruff format --check src tests
 	uv run python -m platform_sdk.verify_tree
 
-docker:  ## Container bauen
-	docker build --tag $(IMAGE) .
+docker:  ## Container bauen: <slug>:test-JJJJMMTT-HHMM, Produktiv-Build: make docker STUFE=prod (tools/build-image.sh)
+	bash tools/build-image.sh
 
 deploy:  ## App auf die Test-VM bringen: make deploy VM=<host> (tools/deploy.sh)
 	bash tools/deploy.sh

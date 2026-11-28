@@ -13,6 +13,7 @@ Golden Master für Portal-Apps: Python (FastAPI). Diese Seite zeigt, was wo lieg
 | [`README.md`](../README.md) | Befehle, Aufbau, Wartung, Selbsttests des Starters |
 | [`.agents/skills/README.md`](../.agents/skills/README.md) | Regeln für die KI |
 | [`pipeline.md`](pipeline.md) | Prüfung bei Pull Requests (GitHub Actions): Auslöser, Prüfschritte, Ergebnis, Vorgehen bei Rot |
+| [`image-tag.md`](image-tag.md) | Image-Tag und Labels: Aufbau, Befehle, Testanleitung (HKA-65) |
 | [`betrieb/betriebsanleitung.md`](betrieb/betriebsanleitung.md) | Betriebsanleitung: Start, Stopp, Neustart, Fehlerfall, Aktualisieren, Zurücksetzen, Beenden, Sichern |
 | [`adr/index.md`](adr/index.md) | Index der Architekturentscheidungen, Verweis auf Confluence |
 | [`adr/0000-vorlage.md`](adr/0000-vorlage.md) | Vorlage für eine neue Entscheidung |
