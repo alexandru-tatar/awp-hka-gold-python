@@ -11,7 +11,7 @@ templates = Jinja2Templates(directory=Path(__file__).parent / "templates")  # au
 # Alle Texte der Seite auf Deutsch und Englisch (Regel R-UI-7); portal.language(request) nennt die Sprache der Person.
 TEXTS = {
     "de": {"title": "Meine App", "lead": "Hier entsteht Ihre Anwendung."},
-    "en": {"title": "My app", "lead": "Your application is being built here."},
+    "en": {"title": "My app", "lead": "Your app is being built here."},
 }
 
 
