@@ -1,8 +1,8 @@
 """Selbsttests des Golden Master (Python-Starter).
 
 Prüft, dass der Starter die Vorgaben der Plattform erfüllt: Aufbau, Manifest, Abhängigkeiten,
-Ruff-Verbote, Container, Gerüst der App, Anmeldung auf jeder Route, unveränderte
-Portal-Bibliothek und Gleichlauf mit dem JavaScript-Golden-Master. Die Tests bleiben grün,
+Ruff-Verbote, Container, Image-Tag und Deploy, Gerüst der App, Anmeldung auf jeder Route,
+unveränderte Portal-Bibliothek und Gleichlauf mit dem JavaScript-Golden-Master. Die Tests bleiben grün,
 wenn eine Person ihre App im Starter baut, solange sie sich an die Regeln hält.
 
 Aufruf: make check-starter            (ohne Container)
@@ -19,6 +19,9 @@ import shutil
 import subprocess
 import time
 import urllib.request
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 from common import JS_ROOT, ROOT, banned_modules, make_targets, manifest_errors, pruefung, pyproject
@@ -433,6 +436,259 @@ def test_container():
         subprocess.run(["docker", "stop", name], capture_output=True)
 
 
+# ── Image und Deploy (HKA-65) ────────────────────────────────────────────────
+# tools/build-image.sh und tools/deploy.sh laufen gegen Platzhalter für docker, ssh und scp. Die Platzhalter merken
+# sich vergebene Tags und schreiben jeden Aufruf mit; es wird nichts gebaut und nichts übertragen.
+# Mit CHECK_DOCKER=1 kommt ein echter Build dazu.
+
+bash_und_make = pytest.mark.skipif(
+    shutil.which("bash") is None or shutil.which("make") is None, reason="bash und make fehlen"
+)
+SLUG = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))["slug"]
+DIGEST = "sha256:" + "0" * 64
+
+PLATZHALTER = {
+    "docker": r"""#!/usr/bin/env bash
+echo "docker $*" >> "$FAKE_LOG"
+case "$1" in
+  build)
+    while [ $# -gt 0 ]; do
+      if [ "$1" = --iidfile ]; then echo "sha256:platzhalter$(wc -l < "$FAKE_LOG" | tr -d ' ')" > "$2"; fi
+      shift
+    done ;;
+  image) grep -qxF "$3" "$FAKE_TAGS"; exit $? ;;
+  tag) echo "$3" >> "$FAKE_TAGS" ;;
+  save) echo "TAR" ;;
+esac
+""",
+    # Das Skript, das deploy.sh mit "ssh -t … bash -c <skript>" auf der VM ausführt, landet in $FAKE_REMOTE.
+    "ssh": r"""#!/usr/bin/env bash
+echo "ssh $*" >> "$FAKE_LOG"
+for last; do :; done
+case "$last" in
+  "bash -c "*) eval "set -- $last"; printf '%s\n' "$3" > "$FAKE_REMOTE" ;;
+esac
+""",
+    "scp": """#!/usr/bin/env bash
+echo "scp $*" >> "$FAKE_LOG"
+""",
+}  # fmt: skip
+
+
+class Platzhalter:
+    """Umgebung mit Platzhaltern für docker, ssh und scp. Aufrufe in .log, vergebene Tags in .tags."""
+
+    FREMD = {"STUFE", "BAUZEIT", "IMAGE", "ZIEL", "VM", "VM_USER", "OWNER_REPO", "MAKEFLAGS", "MAKELEVEL", "MFLAGS"}
+
+    def __init__(self, tmp_path: Path):
+        bindir = tmp_path / "bin"
+        bindir.mkdir()
+        for name, text in PLATZHALTER.items():
+            (bindir / name).write_text(text, encoding="utf-8")
+            (bindir / name).chmod(0o755)
+        self.log, self.tags, self.remote = tmp_path / "aufrufe.log", tmp_path / "tags", tmp_path / "remote.sh"
+        for path in (self.log, self.tags, self.remote):
+            path.write_text("", encoding="utf-8")
+        self.env = {k: v for k, v in os.environ.items() if k not in self.FREMD} | {
+            "PATH": f"{bindir}{os.pathsep}{os.environ['PATH']}",
+            "FAKE_LOG": str(self.log),
+            "FAKE_TAGS": str(self.tags),
+            "FAKE_REMOTE": str(self.remote),
+        }
+
+    def run(self, *args: str, cwd: Path = ROOT, **env: str) -> subprocess.CompletedProcess:
+        return subprocess.run(list(args), cwd=cwd, env=self.env | env, capture_output=True, text=True, timeout=60)
+
+    def aufrufe(self, befehl: str) -> list[str]:
+        return [z for z in self.log.read_text(encoding="utf-8").splitlines() if z.startswith(f"{befehl} ")]
+
+
+@pytest.fixture
+def platzhalter(tmp_path):
+    return Platzhalter(tmp_path)
+
+
+def label(aufruf: str, name: str) -> str:
+    """Wert von --label org.opencontainers.image.<name>=… aus einem docker-build-Aufruf."""
+    return re.search(rf"--label org\.opencontainers\.image\.{name}=(\S+)", aufruf).group(1)
+
+
+def git_revision() -> str:
+    """Was tools/build-image.sh als revision einträgt: Commit, mit -dirty bei nicht committeten Änderungen."""
+    if shutil.which("git") is None:
+        return "unbekannt"
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True)
+    if head.returncode != 0:
+        return "unbekannt"
+    dirty = subprocess.run(["git", "status", "--porcelain"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    return head.stdout.strip() + ("-dirty" if dirty else "")
+
+
+def deploy_kopie(tmp_path: Path) -> Path:
+    """Kopie von Makefile, Werkzeugen und Manifest mit eigenem slug (deploy.sh lehnt meine-app ab)."""
+    kopie = tmp_path / "app"
+    (kopie / "tools").mkdir(parents=True)
+    for path in ("Makefile", "tools/deploy.sh", "tools/build-image.sh"):
+        shutil.copy2(ROOT / path, kopie / path)
+    manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8")) | {"slug": "selbsttest-app"}
+    (kopie / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return kopie
+
+
+@pruefung("Image und Deploy", "make docker: Tag test-JJJJMMTT-HHMM mit der Bauzeit in Europe/Berlin (HKA-65, AK1)")
+@bash_und_make
+def test_make_docker_tag_mit_bauzeit(platzhalter):
+    berlin = ZoneInfo("Europe/Berlin")
+    vorher = datetime.now(berlin).replace(second=0, microsecond=0)
+    result = platzhalter.run("make", "-s", "docker")
+    nachher = datetime.now(berlin)
+    assert result.returncode == 0, result.stderr
+    tag = re.fullmatch(rf"{re.escape(SLUG)}:test-(\d{{8}}-\d{{4}})", result.stdout.strip())
+    assert tag, result.stdout
+    gebaut = datetime.strptime(tag.group(1), "%Y%m%d-%H%M").replace(tzinfo=berlin)
+    assert vorher <= gebaut <= nachher
+    created = datetime.fromisoformat(label(platzhalter.aufrufe("docker build")[0], "created"))
+    assert created.utcoffset() == gebaut.utcoffset()
+    assert f"{created:%Y%m%d-%H%M}" == tag.group(1)
+
+
+@pruefung("Image und Deploy", "Tag aus der Bauzeit; Produktiv-Build mit make docker STUFE=prod (AK1, AK2)")
+@bash_und_make
+@pytest.mark.parametrize(
+    ("make_args", "bauzeit", "tag"),
+    [
+        pytest.param((), "2026-11-25T14:30:00+01:00", "test-20261125-1430", id="test-winterzeit"),
+        pytest.param(("STUFE=prod",), "2026-07-01T09:05:59+02:00", "prod-20260701-0905", id="prod-sommerzeit"),
+        pytest.param(("STUFE=test",), "2026-01-01T00:00:00+01:00", "test-20260101-0000", id="test-mitternacht"),
+    ],
+)
+def test_make_docker_tag_und_stufe(platzhalter, make_args, bauzeit, tag):
+    result = platzhalter.run("make", "-s", "docker", *make_args, BAUZEIT=bauzeit)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == f"{SLUG}:{tag}"
+    assert label(platzhalter.aufrufe("docker build")[0], "created") == bauzeit
+
+
+@pruefung("Image und Deploy", "Abgelehnt: falsche Stufe, ungültiger Name, eigenes Tag, Zeit nicht in Europe/Berlin")
+@bash_und_make
+@pytest.mark.parametrize(
+    ("args", "env"),
+    [
+        pytest.param((), {"STUFE": "staging"}, id="stufe-staging"),
+        pytest.param(("Meine-App",), {}, id="name-grossbuchstaben"),
+        pytest.param(("meine-app:latest",), {}, id="name-mit-tag"),
+        pytest.param(("meine-app", "--tag", "meine-app:latest"), {}, id="option-tag"),
+        pytest.param(("-t=meine-app:latest",), {}, id="option-t"),
+        pytest.param((), {"BAUZEIT": "2026-11-25T14:30:00+00:00"}, id="zeit-utc"),
+        pytest.param((), {"BAUZEIT": "2026-11-25T14:30"}, id="zeit-unvollstaendig"),
+    ],
+)
+def test_build_image_lehnt_ab(platzhalter, args, env):
+    result = platzhalter.run("bash", "tools/build-image.sh", *args, **env)
+    assert result.returncode != 0
+    assert "FEHLER" in result.stderr
+    assert platzhalter.aufrufe("docker build") == []
+
+
+@pruefung("Image und Deploy", "Labels: Bauzeit (created) und Git-Commit (revision) (AK3)")
+@bash_und_make
+def test_build_image_labels(platzhalter):
+    result = platzhalter.run("bash", "tools/build-image.sh", BAUZEIT="2026-11-25T14:30:00+01:00")
+    assert result.returncode == 0, result.stderr
+    (aufruf,) = platzhalter.aufrufe("docker build")
+    assert label(aufruf, "created") == "2026-11-25T14:30:00+01:00"
+    assert label(aufruf, "revision") == git_revision()
+
+
+@pruefung("Image und Deploy", "Zweiter Build in derselben Minute: Zähler -2, vorhandenes Tag bleibt (AK4)")
+@bash_und_make
+def test_build_image_zaehler(platzhalter):
+    refs = []
+    for sekunde in ("00", "20", "40"):
+        result = platzhalter.run("bash", "tools/build-image.sh", BAUZEIT=f"2026-11-25T14:30:{sekunde}+01:00")
+        assert result.returncode == 0, result.stderr
+        refs.append(result.stdout.strip())
+    basis = f"{SLUG}:test-20261125-1430"
+    assert refs == [basis, f"{basis}-2", f"{basis}-3"]
+    # Jedes docker tag vergibt ein neues Tag; keins wird ein zweites Mal vergeben (das hieße: überschrieben).
+    assert [aufruf.split()[-1] for aufruf in platzhalter.aufrufe("docker tag")] == refs
+
+
+@pruefung("Image und Deploy", "make deploy überträgt genau das gebaute Tag, nie latest (AK5)")
+@bash_und_make
+def test_make_deploy_uebertraegt_genau_dieses_tag(platzhalter, tmp_path):
+    kopie = deploy_kopie(tmp_path)
+    result = platzhalter.run(
+        "make", "-s", "deploy", "VM=vm.example.invalid",
+        cwd=kopie, OWNER_REPO="hka/selbsttest-app", BAUZEIT="2026-11-25T14:30:00+01:00",
+    )  # fmt: skip
+    assert result.returncode == 0, result.stdout + result.stderr
+    ref = "selbsttest-app:test-20261125-1430"
+    assert platzhalter.aufrufe("docker save") == [f"docker save {ref}"]
+    remote = platzhalter.remote.read_text(encoding="utf-8")
+    assert "sudo docker images selbsttest-app\n" in remote
+    assert f"  {ref} >/dev/null" in remote  # docker run startet genau dieses Image
+    assert "latest" not in platzhalter.log.read_text(encoding="utf-8") + remote
+
+
+@pruefung("Image und Deploy", "make deploy mit IMAGE: festes Tag oder Digest, nie latest (AK5)")
+@bash_und_make
+@pytest.mark.parametrize(
+    ("image", "erlaubt"),
+    [
+        pytest.param("ghcr.io/hka/app:latest", False, id="latest"),
+        pytest.param("ghcr.io/hka/app", False, id="ohne-tag"),
+        pytest.param(f"ghcr.io/hka/app:latest@{DIGEST}", False, id="latest-mit-digest"),
+        pytest.param(f"ghcr.io/hka/app@{DIGEST}", True, id="digest"),
+        pytest.param("ghcr.io/hka/app:sha-1a2b3c4", True, id="festes-tag"),
+    ],
+)
+def test_make_deploy_image_ohne_latest(platzhalter, tmp_path, image, erlaubt):
+    kopie = deploy_kopie(tmp_path)
+    result = platzhalter.run(
+        "make", "-s", "deploy", "VM=vm.example.invalid", f"IMAGE={image}", cwd=kopie, OWNER_REPO="hka/selbsttest-app"
+    )
+    if erlaubt:
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert platzhalter.aufrufe("docker save") == [f"docker save {image}"]
+        assert "sudo docker images ghcr.io/hka/app\n" in platzhalter.remote.read_text(encoding="utf-8")
+    else:
+        assert result.returncode != 0
+        assert "latest" in result.stderr
+        assert platzhalter.aufrufe("docker pull") == platzhalter.aufrufe("docker save") == []
+
+
+@pruefung("Image und Deploy", "Echter Build: Labels per docker inspect, Zähler -2, erstes Image bleibt (AK3, AK4)")
+@docker
+def test_image_echter_build():
+    name, refs, ids = f"gold-py-selftest-{os.getpid()}", [], []
+    env = {k: v for k, v in os.environ.items() if k not in Platzhalter.FREMD}
+
+    def inspect(ref: str) -> dict:
+        out = subprocess.run(["docker", "image", "inspect", ref], check=True, capture_output=True, text=True).stdout
+        return json.loads(out)[0]
+
+    try:
+        for bauzeit in ("2026-11-25T14:30:00+01:00", "2026-11-25T14:30:30+01:00"):
+            result = subprocess.run(
+                ["bash", "tools/build-image.sh", name], cwd=ROOT, env=env | {"BAUZEIT": bauzeit},
+                capture_output=True, text=True, timeout=900,
+            )  # fmt: skip
+            assert result.returncode == 0, result.stderr[-3000:]
+            refs.append(result.stdout.strip())
+            ids.append(inspect(refs[-1])["Id"])
+        assert refs == [f"{name}:test-20261125-1430", f"{name}:test-20261125-1430-2"]
+        assert ids[0] != ids[1]
+        assert inspect(refs[0])["Id"] == ids[0]  # das erste Image ist nicht überschrieben
+        labels = [inspect(ref)["Config"]["Labels"] for ref in refs]
+        assert labels[0]["org.opencontainers.image.created"] == "2026-11-25T14:30:00+01:00"
+        assert labels[1]["org.opencontainers.image.created"] == "2026-11-25T14:30:30+01:00"
+        assert labels[0]["org.opencontainers.image.revision"] == git_revision()
+    finally:
+        if refs:
+            subprocess.run(["docker", "rmi", *refs], capture_output=True)
+
+
 # ── Gleichlauf mit dem JavaScript-Golden-Master (HKA-44, Kriterium 9) ────────
 
 js = pytest.mark.skipif(not JS_ROOT.is_dir(), reason="awp-hka-gold-js liegt nicht neben diesem Repository")
@@ -465,6 +721,14 @@ def test_gleiche_pflichtdateien_manifest_sdk():
         assert (ROOT / path).exists() and (JS_ROOT / path).exists(), f"{path} fehlt in einem der Repositories"
     assert json.loads((ROOT / "manifest.json").read_text(encoding="utf-8")) == json.loads(js_text("manifest.json"))
     assert (ROOT / "platform_sdk" / "VERSION").read_text(encoding="utf-8") == js_text("platform_sdk/VERSION")
+
+
+@pruefung("Gleichlauf mit JavaScript", "tools/deploy.sh und tools/build-image.sh gleich (HKA-65)")
+@js
+@pytest.mark.parametrize("path", ["tools/deploy.sh", "tools/build-image.sh"])
+def test_gleiche_werkzeuge(path):
+    assert (JS_ROOT / path).is_file(), f"{path} fehlt in awp-hka-gold-js"
+    assert (ROOT / path).read_bytes() == (JS_ROOT / path).read_bytes(), f"{path} weicht ab"
 
 
 @pruefung("Gleichlauf mit JavaScript", "Gleiche Prüfbereiche im Prüfbericht")

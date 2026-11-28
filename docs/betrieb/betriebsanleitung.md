@@ -19,10 +19,10 @@ Für Personen, die die Plattform betreiben, aber nicht täglich damit arbeiten. 
 **Schritte:**
 
 1. App direkt starten: `make start`. Die App lauscht auf Port 8080.
-2. Oder im Container starten. Zuerst bauen: `make docker`. Dann starten:
+2. Oder im Container starten. Zuerst bauen: `make docker`. Die letzte Zeile nennt das Image, zum Beispiel `meine-app:test-20261127-1430` (Aufbau: [Image-Tag](../image-tag.md)). Dann mit diesem Namen starten:
 
    ```bash
-   docker run --rm --read-only --cap-drop=ALL --tmpfs /tmp --publish 8080:8080 hka/portal-app:0.1.0
+   docker run --rm --read-only --cap-drop=ALL --tmpfs /tmp --publish 8080:8080 meine-app:test-20261127-1430
    ```
 
 3. Prüfen: <http://localhost:8080/healthz> antwortet mit `{"status":"ok"}`.
@@ -63,9 +63,10 @@ Ohne das Portal davor antworten die Seiten der App mit 401. Das ist richtig, den
 
 1. Prüfen, ob die App antwortet: <http://localhost:8080/healthz> muss `{"status":"ok"}` liefern.
 2. Im Container prüft der `HEALTHCHECK` des Images dasselbe alle 10 Sekunden, nach 3 Fehlversuchen gilt der Container als ungesund. Der Prüfbefehl lautet `python -m platform_sdk.healthcheck`.
-3. Automatische Tests ausführen: `make test`.
-4. Regeln und Portal-Bibliothek prüfen: `make lint`.
-5. Den Starter als Ganzes prüfen (Plattform-Team): `make check`. Der Prüfnachweis nach der Confluence-Vorlage liegt danach in `build/pruefberichte/pruefnachweis-aktuell.md`. Mit `CHECK_DOCKER=1 make check-starter` wird zusätzlich der Container gebaut und gestartet.
+3. Welcher Stand läuft: Das Tag des Images nennt die Bauzeit. Den Git-Commit zeigt `docker inspect --format '{{json .Config.Labels}}' <image>` im Label `org.opencontainers.image.revision`. Auf der VM: `sudo docker ps --filter name=app-<slug> --format '{{.Image}}'` nennt das Image.
+4. Automatische Tests ausführen: `make test`.
+5. Regeln und Portal-Bibliothek prüfen: `make lint`.
+6. Den Starter als Ganzes prüfen (Plattform-Team): `make check`. Der Prüfnachweis nach der Confluence-Vorlage liegt danach in `build/pruefberichte/pruefnachweis-aktuell.md`. Mit `CHECK_DOCKER=1 make check-starter` wird zusätzlich der Container gebaut und gestartet.
 
 <!-- TODO: Logs ansehen und typische Störungen ergänzen. Im Repository gibt es dafür keinen Befehl. Geplant: platform.sh status, platform.sh logs, platform.sh check (claude-proposal/10-platform-ops.md §5, Fehlermatrix §12). -->
 
@@ -82,7 +83,7 @@ Die Befehle und ihre Wirkung stehen im [README, Abschnitt „Wartung“](../../R
 1. Abhängigkeiten: `make lock`.
 2. Portal-Bibliothek: `make sdk-update`.
 3. Danach prüfen: `make test` und `make lint`.
-4. Container neu bauen: `make docker`.
+4. Container neu bauen: `make docker`. Das neue Image bekommt ein neues Tag, das vorherige bleibt erhalten.
 
 **Achtung:** `make sdk-update` sucht die Kopie unter `../portal/sdk/dist/python/platform_sdk`. Heißt der Ordner des Portal-Repositorys anders, zum Beispiel `awp-hka-intranet-portal`, geben Sie den Pfad mit `SDK_DIST=…` an.
 
@@ -92,7 +93,7 @@ Die Befehle und ihre Wirkung stehen im [README, Abschnitt „Wartung“](../../R
 
 **Zweck:** Die App auf die vorherige Version zurückbringen, wenn die neue Version Probleme macht.
 
-**Voraussetzungen:** Es gibt eine vorherige Version.
+**Voraussetzungen:** Es gibt eine vorherige Version. Jedes Image hat ein eigenes Tag, die vorherigen bleiben auf der VM liegen. `sudo docker images <slug>` zeigt sie.
 
 **Schritte:**
 

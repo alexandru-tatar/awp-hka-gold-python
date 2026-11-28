@@ -4,14 +4,14 @@
 # Container für eine Portal-App (Python-Golden-Master)
 # Verwaltete Datei: Änderungen nur über die Plattform (sonst PF-108)
 #
-# Aufruf:   docker build --tag hka/portal-app:0.1.0 .
-#               ggf. --no-cache
+# Aufruf:   make docker   (tools/build-image.sh, Tag z. B. meine-app:test-20261127-1430, siehe docs/image-tag.md)
+#               ggf. bash tools/build-image.sh --no-cache
 #
 #           Windows:   Get-Content Dockerfile | docker run --rm --interactive hadolint/hadolint:v2.14.0-debian
 #           macOS:     cat Dockerfile | docker run --rm --interactive hadolint/hadolint:v2.14.0-debian
 #
-#           docker run --rm --read-only --cap-drop=ALL --tmpfs /tmp --publish 8080:8080 hka/portal-app:0.1.0
-#           docker scout cves hka/portal-app:0.1.0
+#           docker run --rm --read-only --cap-drop=ALL --tmpfs /tmp --publish 8080:8080 meine-app:test-20261127-1430
+#           docker scout cves meine-app:test-20261127-1430
 
 # https://docs.docker.com/build/building/multi-stage
 # https://github.com/astral-sh/uv-docker-example/blob/main/multistage.Dockerfile

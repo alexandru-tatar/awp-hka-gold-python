@@ -15,6 +15,10 @@
 #     Capabilities. Image, Konfiguration und Ordner (Manifeste, Registry) liest das Skript aus dem laufenden Portal-Container;
 #     geschrieben wird nur im Container (UID des Portals), nie als eigener Benutzer.
 #
+# Image-Tag (HKA-65): Lokal gebaut wird wie bei make docker mit tools/build-image.sh, z. B. <slug>:test-20261125-1430,
+# Bauzeit und Git-Commit stehen als Labels im Image. Genau dieses Tag kommt auf die VM, nie latest. Ein IMAGE aus GHCR
+# braucht deshalb ein festes Tag oder einen Digest.
+#
 # Ein Container (Standard) oder mehrere (optional): Liegt compose.yml im Repository, startet das Skript alle Services daraus.
 # Pflicht ist dann ein Service "app" (die App selbst). Nur "app" kommt ins Netz des Portals; weitere Services (z. B. eine
 # Datenbank) sind nur im eigenen Netz der App erreichbar. Härtung und Portal-Einstellungen für "app" setzt das Skript selbst.
@@ -31,7 +35,8 @@
 #   ZIEL          vm oder lokal                                        (Standard: vm)
 #   VM            Rechnername der VM                                   (Pflicht bei ZIEL=vm)
 #   VM_USER       Benutzer auf der VM                                  (Standard: sadmin)
-#   IMAGE         leer: lokal bauen; sonst dieses Image ziehen         (Standard: leer)
+#   IMAGE         leer: lokal bauen; sonst ziehen (nicht latest)       (Standard: leer)
+#   STUFE         test oder prod, Anfang des Image-Tags                (Standard: test, nur beim lokalen Bauen)
 #   PORTAL_NETZ   Docker-Netz der Apps                                 (Standard: hka-portal-apps, HKA-60)
 #   PORTAL_API    Gateway im Docker-Netz (JWKS, Menü /nav)             (Standard: http://gateway:8080)
 #   PORTAL_ADAPTERS Adapter im Docker-Netz (z. B. bwSync)              (Standard: http://adapter:8080)
@@ -144,17 +149,26 @@ fi
 # Einziger Schritt, der von der Herkunft abhängt. Mit HKA-57 setzt man nur IMAGE; alles danach bleibt gleich.
 
 if [ -z "$IMAGE" ]; then
-  IMAGE="hka/$NAME:$(git rev-parse --short HEAD)"
-  schritt "$(t "Image lokal bauen" "Build image locally"): $IMAGE${PLATTFORM[*]+ (${PLATTFORM[*]})}"
-  docker buildx version >/dev/null 2>&1 \
-    || fehler "$(t "docker buildx fehlt (BuildKit, das Dockerfile braucht es). Ubuntu/Debian: sudo apt install docker-buildx; Docker Desktop hat es schon." "docker buildx is missing (BuildKit, the Dockerfile needs it). Ubuntu/Debian: sudo apt install docker-buildx; Docker Desktop has it.")"
-  [ -z "$(git status --porcelain)" ] || echo "$(t "WARNUNG: nicht committete Änderungen, sie kommen mit ins Image." "WARNING: uncommitted changes, they go into the image.")" >&2
-  docker build ${PLATTFORM[@]+"${PLATTFORM[@]}"} --tag "$IMAGE" .
+  # Wie make docker: <slug>:<stufe>-JJJJMMTT-HHMM, Labels mit Bauzeit und Git-Commit (HKA-65)
+  schritt "$(t "Image lokal bauen, Stufe" "Build image locally, stage") ${STUFE:-test}${PLATTFORM[*]+ (${PLATTFORM[*]})}"
+  IMAGE=$(bash tools/build-image.sh ${PLATTFORM[@]+"${PLATTFORM[@]}"})
 else
-  [[ "$IMAGE" =~ $EINFACH ]] || fehler "$(t "ungültiger Image-Name: $IMAGE" "invalid image name: $IMAGE")"
+  # Nie latest: Sonst ist auf der VM nicht zu erkennen, welcher Stand läuft (HKA-65)
+  REF="${IMAGE%%@*}"
+  case "${REF##*/}" in
+    *:latest) fehler "$(t "IMAGE mit Tag latest ist nicht erlaubt. Ein festes Tag oder einen Digest (@sha256:…) angeben." "IMAGE with tag latest is not allowed. Give a fixed tag or a digest (@sha256:…).")" ;;
+    *:*) ;;
+    *) [ "$REF" != "$IMAGE" ] || fehler "$(t "IMAGE ohne Tag heißt latest. Ein festes Tag oder einen Digest (@sha256:…) angeben." "IMAGE without a tag means latest. Give a fixed tag or a digest (@sha256:…).")" ;;
+  esac
+  [[ "$IMAGE" =~ $EINFACH ]] || fehler "$(t "ungültiger Image-Name: $IMAGE" "invalid image name: $IMAGE")"   # vor dem Ziehen prüfen
   schritt "$(t "Image ziehen" "Pull image"): $IMAGE${PLATTFORM[*]+ (${PLATTFORM[*]})}"
   docker pull ${PLATTFORM[@]+"${PLATTFORM[@]}"} "$IMAGE"
 fi
+[[ "$IMAGE" =~ $EINFACH ]] || fehler "$(t "ungültiger Image-Name: $IMAGE" "invalid image name: $IMAGE")"
+# Name ohne Tag und Digest, für docker images auf der VM (ein Port im Registry-Namen bleibt stehen)
+REPO="${IMAGE%%@*}"
+case "${REPO##*/}" in *:*) REPO="${REPO%:*}" ;; esac
+echo "    Image $IMAGE"
 
 mkdir -p build/deploy
 BILDER=("$IMAGE")
@@ -340,6 +354,7 @@ $STARTEN_UND_WARTEN"
   LETZTER=$(t "fertig" "done")
   echo ""
   echo "$(t "Fertig. In etwa 10 s im Menü" "Done. In the menu in about 10 s"): http://localhost:18080/  (App: http://localhost:18080/apps/$SLUG/)"
+  echo "Image: $IMAGE"
   exit 0
 fi
 
@@ -366,6 +381,8 @@ REMOTE=$(cat <<EOF
 set -euo pipefail
 echo "==> docker load"
 gunzip -c ~/deploy/$NAME.tar.gz | sudo docker load
+echo "==> $(t "Images $REPO auf der VM" "Images $REPO on the VM")"
+sudo docker images $REPO
 sudo docker network inspect $PORTAL_NETZ >/dev/null 2>&1 || { echo "$M_FEHLER: $(t "Docker-Netz $PORTAL_NETZ fehlt. Läuft das Portal?" "Docker network $PORTAL_NETZ is missing. Is the portal running?")" >&2; exit 1; }
 $STARTEN_UND_WARTEN
 echo "==> portal-deploy check"
@@ -382,3 +399,4 @@ ssh -t "$ZIEL_HOST" "bash -c $(q "$REMOTE")"
 LETZTER=$(t "fertig" "done")
 echo ""
 echo "$(t "Fertig. In etwa 10 s im Menü" "Done. In the menu in about 10 s"): https://$VM/  (App: https://$VM/apps/$SLUG/)"
+echo "Image: $IMAGE"

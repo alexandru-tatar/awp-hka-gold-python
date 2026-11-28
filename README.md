@@ -18,7 +18,7 @@ Zuerst in `manifest.json` Name und Menütext auf Deutsch und Englisch (`name`, `
 | `make start` | App wie im Betrieb starten (ohne Test-Anmeldung) |
 | `make test` | automatische Tests |
 | `make lint` | Regeln prüfen (Ruff, Formatierung, Portal-Bibliothek) |
-| `make docker` | Produktionscontainer bauen; benötigt Docker auf dem Host und wird auf dem Host ausgeführt, nicht im DevContainer. |
+| `make docker` | Produktionscontainer bauen, Tag `<slug>:test-JJJJMMTT-HHMM`, mit `STUFE=prod` als `prod-…` ([Image-Tag](docs/image-tag.md)); benötigt Docker auf dem Host und wird auf dem Host ausgeführt, nicht im DevContainer. |
 | `make deploy VM=<host>` | App auf die Test-VM bringen und im Portal registrieren (siehe unten) |
 
 Bei Entwicklung ohne DevContainer benötigen Sie [`uv`](https://docs.astral.sh/uv/). Python 3.14 holt `uv` dann selbst.
@@ -31,10 +31,11 @@ Erst nach Merge auf `main`. Auf dem eigenen Rechner (nicht im DevContainer), mit
 make deploy VM=iwi-hean-05.hs-karlsruhe.de
 ```
 
-Das Skript `tools/deploy.sh` baut das Image (`linux/amd64`), kopiert es mit `manifest.json` per `scp` auf die VM, startet dort den Container `app-<slug>` und registriert die App mit `portal-deploy`. Nach etwa 10 s steht sie im Menü unter `https://<host>/apps/<slug>/`. Bei einem Fehler bricht es ab und nennt den Schritt. Die Meldungen kommen auf Deutsch oder Englisch: `PORTAL_LANG=en make deploy …` (sonst nach `LANG`, Standard Deutsch).
+Das Skript `tools/deploy.sh` baut das Image wie `make docker` (`linux/amd64`) und kopiert genau dieses Tag (nie `latest`) mit `manifest.json` per `scp` auf die VM. Dort startet es den Container `app-<slug>` und registriert die App mit `portal-deploy`. Nach etwa 10 s steht sie im Menü unter `https://<host>/apps/<slug>/`. Bei einem Fehler bricht es ab und nennt den Schritt. Die Meldungen kommen auf Deutsch oder Englisch: `PORTAL_LANG=en make deploy …` (sonst nach `LANG`, Standard Deutsch).
 
 - Voraussetzung: Zugang als `sadmin` (ssh, sudo). `slug` in `manifest.json` ist nicht mehr `meine-app`.
-- Fertiges Image statt lokal bauen: `make deploy VM=… IMAGE=ghcr.io/<owner>/<repo>@sha256:…`
+- Fertiges Image statt lokal bauen: `make deploy VM=… IMAGE=ghcr.io/<owner>/<repo>@sha256:…`. Erlaubt sind ein festes Tag oder ein Digest, `latest` lehnt das Skript ab.
+- Welches Image eingespielt wurde, nennt die letzte Zeile der Ausgabe. Aufbau des Tags und Labels: [Image-Tag](docs/image-tag.md).
 - Weitere Einstellungen stehen oben in `tools/deploy.sh`.
 
 ### Mehrere Container (optional)
@@ -82,7 +83,7 @@ Getrennt von den Tests der App in `tests/`. Sie laufen nicht mit `make test`.
 | Befehl | Was geprüft wird |
 |---|---|
 | `make check-skills` | `.agents/skills/`: Kopf, Regeln und Prüfungen (40 / 33 / 7), Zählung im README, Python- und JSON-Beispiele, Verweise auf Befehle und Dateien, Ruff-Verbote, Beispielantworten, Satzlänge, Gleichlauf mit `awp-hka-gold-js` |
-| `make check-starter` | Aufbau, Manifest, Abhängigkeiten, Ruff-Verbote, `Dockerfile`, Gerüst der App, Vorlagen und CSS, 401 auf jeder Route, Portal-Bibliothek, Gleichlauf mit `awp-hka-gold-js`. Mit `CHECK_DOCKER=1` zusätzlich Container bauen und starten |
+| `make check-starter` | Aufbau, Manifest, Abhängigkeiten, Ruff-Verbote, `Dockerfile`, Gerüst der App, Vorlagen und CSS, 401 auf jeder Route, Portal-Bibliothek, Image-Tag und Deploy (mit Platzhaltern für `docker`, `ssh`, `scp`), Gleichlauf mit `awp-hka-gold-js`. Mit `CHECK_DOCKER=1` zusätzlich Container bauen und starten, dazu zwei Images in derselben Minute |
 | `make check` | beide Selbsttests, dazu `make lint` und `make test`; schreibt den gemeinsamen Prüfnachweis. Läuft nach einem Fehler weiter, damit der Nachweis immer entsteht |
 
 Jeder Befehl gibt einen deutschen Prüfbericht aus (Prüfbereiche, jede Prüfung mit Ergebnis und betroffenen Einzelregeln, alle 40 Einzelregeln mit Stand, Gesamtergebnis) und speichert ihn im Aufbau der Confluence-Vorlage [„Vorlage: User Story, Akzeptanzkriterien und Prüfnachweis“](https://hka-awp.atlassian.net/wiki/spaces/HKA/pages/19922945):
