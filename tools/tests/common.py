@@ -30,7 +30,7 @@ ICONS = {"grades", "mail", "calendar", "document", "people", "book", "room", "se
 ROLE_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 ADAPTER_RE = re.compile(r"^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$")
 VERSION_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
-MANIFEST_FIELDS = {"slug", "name", "category", "menu", "roles", "adapters", "claims", "version"}
+MANIFEST_FIELDS = {"slug", "name", "name_en", "category", "menu", "roles", "adapters", "claims", "version"}
 
 
 def manifest_errors(m: dict) -> list[str]:
@@ -38,21 +38,25 @@ def manifest_errors(m: dict) -> list[str]:
     errors = []
     if unknown := set(m) - MANIFEST_FIELDS:
         errors.append(f"unbekannte Felder: {sorted(unknown)}")
-    for key in ("slug", "name", "category", "menu", "roles", "version"):
+    for key in ("slug", "name", "name_en", "category", "menu", "roles", "version"):
         if key not in m:
             errors.append(f"Pflichtfeld fehlt: {key}")
     if "slug" in m and not SLUG_RE.match(str(m["slug"])):
         errors.append("slug ungültig")
     if "name" in m and not (isinstance(m["name"], str) and 1 <= len(m["name"]) <= 60):
         errors.append("name ungültig")
+    if "name_en" in m and not (isinstance(m["name_en"], str) and 1 <= len(m["name_en"]) <= 60):
+        errors.append("name_en ungültig")
     if "category" in m and m["category"] not in CATEGORIES:
         errors.append("category ungültig")
     menu = m.get("menu", {})
     if "menu" in m:
-        if set(menu) != {"label", "icon"}:
-            errors.append("menu braucht genau label und icon")
+        if set(menu) != {"label", "label_en", "icon"}:
+            errors.append("menu braucht genau label, label_en und icon")
         if not (isinstance(menu.get("label"), str) and 1 <= len(menu["label"]) <= 40):
             errors.append("menu.label ungültig")
+        if not (isinstance(menu.get("label_en"), str) and 1 <= len(menu["label_en"]) <= 40):
+            errors.append("menu.label_en ungültig")
         if menu.get("icon") not in ICONS:
             errors.append("menu.icon ungültig")
     roles = m.get("roles")

@@ -4,7 +4,7 @@
 
 ## Zweck
 
-Diese sieben Skills sagen der KI, woran sie sich beim Bau einer Micro-App im Python-Starter (FastAPI) halten muss. Sie setzen die **sieben Regeln des Golden Master** um (Confluence: „Die sieben Regeln des Golden Master (Entwurf 0.1)“, Ticket HKA-29). Die sieben Regeln bestehen aus **40 Einzelregeln** mit fester Kennung wie `R-SEC-3`. Eine Regel ist **erfüllt**, wenn alle Einzelregeln der Stufe „muss“ bestanden sind. Einzelregeln der Stufe „soll“ werden berichtet, entscheiden aber nicht.
+Diese sieben Skills sagen der KI, woran sie sich beim Bau einer Micro-App im Python-Starter (FastAPI) halten muss. Sie setzen die **sieben Regeln des Golden Master** um (Confluence: „Die sieben Regeln des Golden Master (Entwurf 0.2)“, Ticket HKA-29). Die sieben Regeln bestehen aus **40 Einzelregeln** mit fester Kennung wie `R-SEC-3`. Eine Regel ist **erfüllt**, wenn alle Einzelregeln der Stufe „muss“ bestanden sind. Einzelregeln der Stufe „soll“ werden berichtet, entscheiden aber nicht.
 
 Die Tabellen „Regeln“ und „Prüfungen“ in jedem Skill sind Wort für Wort aus dem Regelpapier übernommen. Wer eine Regel ändern will, ändert zuerst das Regelpapier und dann den Skill.
 

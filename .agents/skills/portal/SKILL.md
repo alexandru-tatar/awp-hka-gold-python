@@ -14,7 +14,7 @@ Die App läuft im HKA Portal. Das Portal meldet die Person an, zeichnet den Seit
 | R-PORT-1 | Kein eigenes Login, Passwort oder eigene Token-Prüfung. | muss |
 | R-PORT-2 | Wer die Person ist, kommt nur aus `portal.user`; jede Seite verlangt Anmeldung. | muss |
 | R-PORT-3 | Links nur über `portal.url(...)`; keine Adressen, die mit `/` beginnen. | muss |
-| R-PORT-4 | `manifest.json` ist vollständig und aktuell (Name, Kategorie, Menü, Rollen, Version). | muss |
+| R-PORT-4 | `manifest.json` ist vollständig und aktuell (Name und Menütext auf Deutsch und Englisch, Kategorie, Rollen, Version). | muss |
 | R-PORT-5 | `/healthz` bleibt unverändert; `platform_sdk/` wird nicht verändert. | muss |
 | R-PORT-6 | Die App setzt und liest keine Cookies. | muss |
 | R-PORT-7 | Rollen im Manifest sind die kleinste Gruppe, die die App braucht. | soll |
@@ -71,19 +71,22 @@ def build_router(portal):
 {
   "slug": "noten",
   "name": "Noten-Übersicht",
+  "name_en": "Grades overview",
   "category": "Studium",
-  "menu": { "label": "Meine Noten", "icon": "grades" },
+  "menu": { "label": "Meine Noten", "label_en": "My grades", "icon": "grades" },
   "roles": ["student"],
   "adapters": ["noten:read"],
   "version": "1.0.0"
 }
 ```
 
-Pflichtfelder sind `slug`, `name`, `category`, `menu` (mit `label` und `icon`), `roles` und `version`. Erlaubt sind:
+Pflichtfelder sind `slug`, `name`, `name_en`, `category`, `menu` (mit `label`, `label_en` und `icon`), `roles` und `version`. Name und Menütext gibt es auf Deutsch und auf Englisch. Erlaubt sind:
 
 | Feld | Werte |
 |---|---|
 | `slug` | Kleinbuchstaben, Ziffern, Bindestrich; 3 bis 31 Zeichen; beginnt mit einem Buchstaben |
+| `name`, `name_en` | Name der App auf Deutsch und auf Englisch; 1 bis 60 Zeichen |
+| `menu.label`, `menu.label_en` | Text im Menü auf Deutsch und auf Englisch; 1 bis 40 Zeichen |
 | `category` | `Studium`, `Verwaltung`, `Kommunikation`, `Sonstiges` |
 | `menu.icon` | `grades`, `mail`, `calendar`, `document`, `people`, `book`, `room`, `settings`, `info` |
 | `roles` | mindestens eine Rolle aus dem Rollenverzeichnis, zum Beispiel `student` |

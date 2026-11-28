@@ -5,7 +5,7 @@ description: Verwenden, wenn die Pipeline rot ist oder ein Mensch eine Fehlermel
 
 # Pipeline-Fehler erklären
 
-Die Pipeline prüft jede Änderung, bevor sie ins Portal geht. Ist sie rot, fehlt etwas, das Sie beheben können. Die Meldungen tragen eine Kennung (`PF-nnn`) und einen deutschen Erklärblock. Die Menschen, die Sie fragen, sind Fachleute und keine Entwickler. Erklären Sie ruhig und ohne Schuldzuweisung.
+Die Pipeline prüft jede Änderung, bevor sie ins Portal geht. Ist sie rot, fehlt etwas, das Sie beheben können. Die Meldungen tragen eine Kennung (`PF-nnn`) und einen Erklärblock auf Deutsch oder Englisch. Die Menschen, die Sie fragen, sind Fachleute und keine Entwickler. Erklären Sie ruhig und ohne Schuldzuweisung.
 
 ## Regeln
 
@@ -20,6 +20,7 @@ Die Pipeline prüft jede Änderung, bevor sie ins Portal geht. Ist sie rot, fehl
 
 1. Suchen Sie in der Meldung den Fehlercode (`PF-nnn`), die Stufe (zum Beispiel `lint`) und, falls vorhanden, Datei und Zeile.
 2. Schlagen Sie den Code in `fehlercodes.md` (in diesem Ordner) nach. Erklären Sie nach diesem Eintrag, statt die Meldung nachzuerzählen.
+   Die Meldung steht auf Deutsch (`FEHLER`, `Was ist passiert:`) oder auf Englisch (`ERROR`, `What happened:`). Der Katalog hat beide Fassungen. Antworten Sie in der Sprache der Person.
 3. Antworten Sie in dieser Reihenfolge:
    - **Was ist passiert?** Die Ursache in einfachen Worten, mit Code, Stufe und Datei.
    - **Warum ist das wichtig?** Ein Satz.
